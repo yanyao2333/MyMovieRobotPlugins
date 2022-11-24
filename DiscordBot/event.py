@@ -19,4 +19,4 @@ def main(plugin: PluginMeta, config: Dict):
         return
     else:
         _LOGGER.info(f"{plugin.manifest.title}加载成功：token: {token}, proxy: {proxy}")
-        start_bot.run(token, proxy)
+        start_bot.run(token, proxy if proxy else None)

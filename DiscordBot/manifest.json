@@ -20,5 +20,7 @@
       "helperText": "http或socks代理，可留空",
       "defaultValue": ""
     }
-  ]
+  ],
+  "logoUrl": "/plugins/DiscordBot/logo.jpg",
+  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/DiscordBot"
 }

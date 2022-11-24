@@ -7,9 +7,13 @@ from io import BytesIO
 
 import requests
 from PIL import Image
+
+# from moviebotapi import MovieBotServer
+# from moviebotapi.core.session import AccessKeySession
 from mbot.openapi import mbot_api
 
 server = mbot_api
+# server = MovieBotServer(AccessKeySession('http://192.168.5.208:1329', ''))
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.info("开始安装discord.py")
 os.system("pip install discord.py -i https://pypi.tuna.tsinghua.edu.cn/simple")
@@ -18,8 +22,7 @@ import discord
 
 class Bot(discord.Client):
     async def on_ready(self):
-        print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print('------')
+        _LOGGER.info(f'Logged in as {self.user} (ID: {self.user.id})')
 
     async def on_message(self, message):
         # we do not want the bot to reply to itself
@@ -28,19 +31,17 @@ class Bot(discord.Client):
         if message.content.startswith('?search'):
             try:
                 _, keyword = message.content.split(" ")
-            except:
+            except ValueError:
                 await message.channel.send("你好像没有输入关键字，请使用**?search [关键字]**进行搜索")
                 return
             build_msg = MessageTemplete()
             view = discord.ui.View()
-            await message.channel.send("请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)))
-        else:
-            return
+            await message.channel.send("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)))
 
 
 class StartBot:
     def __init__(self):
-        self.boter = None
+        pass
 
     def run(self, token, proxy):
         intents = discord.Intents.default()
@@ -63,8 +64,8 @@ class MessageTemplete:
         country = ' / '.join(i for i in douban_get.country)
         premiere_date = douban_get.premiere_date
         embed.set_footer(text=f"首播时间：{premiere_date}")
-        embed.add_field(name="区域", value=country, inline=False)
-        embed.add_field(name="类型", value=genres, inline=False)
+        embed.add_field(name="区域", value=country)
+        embed.add_field(name="类型", value=genres)
         # embed.set_thumbnail(url=douban_get.cover_image)
         embed.set_author(name="MovieRobot")
         # 缩小豆瓣图片后发送（增加美观 增加了发送时间 后期可能会放弃）
@@ -123,12 +124,23 @@ class MessageTemplete:
     def build_filter_button(self):
         """构建过滤器选择界面按钮"""
         filters = []
+        view = discord.ui.View()
         filters_get = server.subscribe.get_filters()
+        auto_filter = discord.ui.Button(label="自动选择过滤器", custom_id="auto_filter",
+                                        style=discord.ButtonStyle.primary, emoji="⌛")
+        auto_filter.callback = Callback().auto_filter_sub
+        view.add_item(auto_filter)
         for i in range(len(filters_get)):
-            filters.append(filters_get[i].filter_name)
+            exec(
+                f"temp = discord.ui.Button(label=filters_get[i].filter_name, custom_id=filters_get[i].filter_name, style=discord.ButtonStyle.primary, emoji='⌛')")
+            exec("temp.callback = Callback().select_filter_sub")
+            exec("view.add_item(temp)")
+        return view
 
 
 class Callback:
+    douban_id = None
+
     async def menu_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
         view = discord.ui.View()
@@ -149,34 +161,29 @@ class Callback:
         await interaction.delete_original_response()
 
     async def subscribe_button_callback(self, interaction: discord.Interaction):
-        douban_id = interaction.data.get("custom_id")
-        _LOGGER.info(f"开始订阅{douban_id}")
+        build_msg = MessageTemplete()
+        Callback.douban_id = interaction.data.get("custom_id")
+        view = build_msg.build_filter_button()
+        await interaction.response.edit_message(view=view)
+
+    async def auto_filter_sub(self, interaction: discord.Interaction):
+        _LOGGER.info(f"开始自动选择过滤器订阅{self.douban_id}")
+        server.subscribe.sub_by_douban(Callback.douban_id)
         await interaction.response.edit_message(content="✔ 订阅成功！", embed=None, view=None)
-        await asyncio.sleep(3.0)
-        server.subscribe.sub_by_douban(douban_id)
+        await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
-# @boter.command()
-# async def search(ctx: commands.Context, keyword: Optional[str] = None):
-#     build_msg = MessageTemplete()
-#     view = discord.ui.View()
-#     if keyword is None:
-#         await ctx.send("你好像没有输入关键字，请使用**?search [关键字]**进行搜索")
-#         return None
-#     await ctx.send("请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)))
-#
-#
-# # 测试按钮回调用 记得删
-# @boter.command()
-# async def cmd_test(ctx: commands.Context):
-#     build_msg = MessageTemplete()
-#     douban_id = 35207723
-#     status = 4
-#     view = discord.ui.View()
-#     btn1, btn2 = build_msg.build_button(douban_id, status)
-#     btn1.callback = Callback().cancel_button_callback
-#     btn2.callback = Callback().subscribe_button_callback
-#     view.add_item(btn1)
-#     view.add_item(btn2)
-#     await ctx.send('', embed=build_msg.build_embed(douban_id=douban_id),
-#                    file=build_msg.file, ephemeral=True, view=view)
+    async def select_filter_sub(self, interaction: discord.Interaction):
+        filter = interaction.data.get("custom_id")
+        server.subscribe.sub_by_douban(douban_id=Callback.douban_id, filter_name=filter)
+        await interaction.response.edit_message(content=f"✔ 使用 {filter} 过滤器订阅成功！", embed=None, view=None)
+        await asyncio.sleep(2.0)
+        await interaction.delete_original_response()
+
+
+def no_thread():
+    """just for test"""
+    intents = discord.Intents.default()
+    intents.message_content = True
+    bot = Bot(proxy=None, intents=intents)
+    bot.run("YOUR TOKEN")
