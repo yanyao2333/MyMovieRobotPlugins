@@ -3,10 +3,10 @@ import logging
 import os
 import threading
 import time
-from io import BytesIO
-
-import requests
-from PIL import Image
+# from io import BytesIO
+#
+# import requests
+# from PIL import Image
 
 # from moviebotapi import MovieBotServer
 # from moviebotapi.core.session import AccessKeySession
@@ -36,7 +36,7 @@ class Bot(discord.Client):
                 return
             build_msg = MessageTemplete()
             view = discord.ui.View()
-            await message.channel.send("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)))
+            await message.channel.send("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
 
 
 class StartBot:
@@ -57,27 +57,35 @@ class MessageTemplete:
         t1 = time.time()
         _LOGGER.info(f"开始获取 豆瓣id：{douban_id} 的详细影片信息")
         douban_get = server.douban.get(douban_id)
+        meta = server.meta.get_media_by_douban(media_type=douban_get.media_type, tmdb_id=douban_id)
+        if douban_get.media_type == "TV":
+            type = "📺"
+        else:
+            type = "🎞️"
         url = douban_get.url
-        embed = discord.Embed(title=douban_get.cn_name, description=douban_get.intro[:150] + "······" if len(
-            douban_get.intro) >= 150 else douban_get.intro, url=url)
-        genres = ' / '.join(i for i in douban_get.genres)
-        country = ' / '.join(i for i in douban_get.country)
-        premiere_date = douban_get.premiere_date
+        embed = discord.Embed(title=type + " " + meta.title, description=meta.intro[:150] + "······" if len(
+            meta.intro) >= 150 else meta.intro, url=url)
+        genres = ' / '.join(i for i in meta.genres)
+        country = ' / '.join(i for i in meta.country)
+        premiere_date = meta.premiere_data
+        if premiere_date is None:
+            premiere_date = "未播出"
         embed.set_footer(text=f"首播时间：{premiere_date}")
         embed.add_field(name="区域", value=country)
         embed.add_field(name="类型", value=genres)
-        # embed.set_thumbnail(url=douban_get.cover_image)
+        embed.set_thumbnail(url=meta.poster_url)
         embed.set_author(name="MovieRobot")
+        embed.set_image(url=meta.background_url)
         # 缩小豆瓣图片后发送（增加美观 增加了发送时间 后期可能会放弃）
-        res = requests.get(douban_get.cover_image)
-        img = BytesIO(res.content)
-        img = Image.open(img)
-        width = img.size[0]
-        height = img.size[1]
-        img = img.resize((int(width * 0.2), int(height * 0.2)), Image.Resampling.LANCZOS)
-        img.save("image.jpg")
-        self.file = discord.File("image.jpg", filename="image.jpg")
-        embed.set_image(url="attachment://image.jpg")
+        # res = requests.get(douban_get.cover_image)
+        # img = BytesIO(res.content)
+        # img = Image.open(img)
+        # width = img.size[0]
+        # height = img.size[1]
+        # img = img.resize((int(width * 0.2), int(height * 0.2)), Image.Resampling.LANCZOS)
+        # img.save("image.jpg")
+        # self.file = discord.File("image.jpg", filename="image.jpg")
+        # embed.set_image(url="attachment://image.jpg")
         t2 = time.time()
         _LOGGER.info("构建embed消耗时间：" + str((t2 - t1) * 1000) + "ms")
         return embed
@@ -88,10 +96,22 @@ class MessageTemplete:
         search_res = server.douban.search(keyword)
         for i in range(len(search_res)):
             if search_res[i].status is None:
-                status = '4'
+                status = '3'
             else:
                 status = str(search_res[i].status.value)
-            menu.add_option(label="<" + str(search_res[i].id) + ">  " + search_res[i].cn_name,
+            if status == '0':
+                emoji = "⏳"
+            elif status == '1':
+                emoji = "✔"
+            elif status == '2':
+                emoji = "🔁"
+            else:
+                emoji = "📥"
+            if str(search_res[i].rating) == "nan":
+                rating = "0.0"
+            else:
+                rating = str(search_res[i].rating)
+            menu.add_option(label=emoji + "|⭐" + rating + "|" + search_res[i].cn_name,
                             value=str(search_res[i].id) + " " + status)
         menu.callback = Callback().menu_callback
         return menu
@@ -102,7 +122,7 @@ class MessageTemplete:
         if status == 0:
             status = '正在订阅️'
             status_disabled = True
-            emoji = "🛎"
+            emoji = "⏳"
         elif status == 1:
             status = '订阅完成'
             status_disabled = True
@@ -151,8 +171,7 @@ class Callback:
         btn2.callback = Callback().subscribe_button_callback
         view.add_item(btn1)
         view.add_item(btn2)
-        await interaction.followup.send('', embed=build_msg.build_embed(douban_id=douban_id),
-                                        file=build_msg.file, ephemeral=True, view=view)
+        await interaction.followup.send('', embed=build_msg.build_embed(douban_id=douban_id), ephemeral=True, view=view)
 
     async def cancel_button_callback(self, interaction: discord.Interaction):
         _LOGGER.info("删除消息")
