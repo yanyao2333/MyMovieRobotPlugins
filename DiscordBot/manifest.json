@@ -1,0 +1,24 @@
+{
+  "name": "discordbot",
+  "title": "discord机器人",
+  "author": "yanyao",
+  "description": "用discord进行订阅操作",
+  "version": "0.1",
+  "requirements": [],
+  "configField": [
+    {
+      "fieldName": "token",
+      "fieldType": "String",
+      "label": "token",
+      "helperText": "登录 https://discord.com/developers/applications 创建应用并进入，接着点Bot -> Add Bot -> Reset Token，复制出现的那一串token即可（别忘了在bot页打开MESSAGE CONTENT INTENT权限）",
+      "defaultValue": ""
+    },
+    {
+      "fieldName": "proxy",
+      "fieldType": "String",
+      "label": "代理地址",
+      "helperText": "http或socks代理，可留空",
+      "defaultValue": ""
+    }
+  ]
+}
