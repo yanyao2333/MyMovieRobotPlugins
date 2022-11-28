@@ -38,23 +38,22 @@ def main(plugin: PluginMeta, config: Dict):
     global PROXY, MY_GUILD, TOKEN, bot
     PROXY = config.get("proxy")
     MY_GUILD = config.get("guild_id")
-    try:
+    if MY_GUILD:
         MY_GUILD = MY_GUILD.split(",")
         for i in range(len(MY_GUILD)):
             MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
-    except AttributeError:
-        MY_GUILD = None
     TOKEN = config.get("token")
     if not TOKEN:
         _LOGGER.warning("DiscordBot:你没有配置token！")
         return
     else:
-        _LOGGER.info(f"{plugin.manifest.title}加载成功,{PROXY}, {MY_GUILD}, {TOKEN}")
+        _LOGGER.info(f"{plugin.manifest.title}加载成功, proxy:{PROXY}, token:{TOKEN}")
         intents = discord.Intents.default()
         bot = StartBot(intents=intents, proxy=PROXY)
         set_commands()
         thread = threading.Thread(target=bot.run, args=(TOKEN, ), name="DiscordBotThread")
         thread.start()
+        _LOGGER.info(f"已启动{plugin.manifest.title}的线程，请自行检查日志判断成功与否")
 
 class MessageTemplete:
     def build_embed(self, douban_id):
@@ -66,12 +65,13 @@ class MessageTemplete:
         try:
             genres = ' / '.join(i for i in meta.genres)
             country = ' / '.join(i for i in meta.country)
-            premiere_date = meta.premiere_data
+            premiere_date = meta.premiere_date
             poster_url = meta.poster_url
             background_url = meta.background_url
             title = meta.title
             intro = meta.intro
         except AttributeError:
+            _LOGGER.info("获取自建元数据失败，使用豆瓣信息")
             genres = ' / '.join(i for i in douban_get.genres) if douban_get.genres else "暂无"
             country = ' / '.join(i for i in douban_get.country) if douban_get.country else "暂无"
             premiere_date = douban_get.premiere_date
@@ -100,6 +100,7 @@ class MessageTemplete:
 
     def build_menu(self, keyword):
         """构造由 豆瓣id+名称 组成的菜单，供用户选择后调用embed发送影片详情"""
+        _LOGGER.info(f"开始获取 关键词：{keyword} 的搜索结果")
         menu = discord.ui.Select()
         search_res = server.douban.search(keyword)
         for i in range(len(search_res)):
@@ -126,7 +127,7 @@ class MessageTemplete:
 
     def build_button(self, douban_id, status):
         """构造一级菜单按钮：取消、订阅"""
-        cancel_button = discord.ui.Button(label="关闭", custom_id="cancel", style=discord.ButtonStyle.danger)
+        cancel_button = discord.ui.Button(label="关闭", custom_id="cancel", style=discord.ButtonStyle.danger, emoji="❌")
         if status == 0:
             status = '正在订阅️'
             status_disabled = True
@@ -153,6 +154,9 @@ class MessageTemplete:
         """构建过滤器选择界面按钮"""
         filters = []
         view = discord.ui.View()
+        cancel_button = discord.ui.Button(label="取消", custom_id="cancle", style=discord.ButtonStyle.danger, emoji="❌")
+        cancel_button.callback = Callback().cancel_button_callback
+        view.add_item(cancel_button)
         filters_get = server.subscribe.get_filters()
         auto_filter = discord.ui.Button(label="自动选择过滤器", custom_id="auto_filter",
                                         style=discord.ButtonStyle.primary, emoji="⌛")
@@ -183,7 +187,7 @@ class Callback:
     async def cancel_button_callback(self, interaction: discord.Interaction):
         _LOGGER.info("删除消息")
         await interaction.response.edit_message(content="这次取消了，下次一定哦！", view=None, embed=None)
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
     async def subscribe_button_callback(self, interaction: discord.Interaction):
@@ -219,7 +223,10 @@ class StartBot(discord.Client):
         except AttributeError as e:
             _LOGGER.info("没有设置服务器id，无法同步应用命令，跳过")
         except discord.errors.Forbidden as e:
-            _LOGGER.warning(f"服务器id：{MY_GUILD[i]}设置错误！请按照教程重新设置！")
+            _LOGGER.warning(f"服务器id：{MY_GUILD[i]} 无权限，可能是获取的id不正确，请按照教程重新获取！")
+
+    async def on_ready(self):
+        await self.change_presence(status=discord.Status.online, activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
 
 def set_commands():
     @bot.tree.command()
@@ -227,7 +234,7 @@ def set_commands():
         keyword="关键词",
     )
     async def search(interaction: discord.Interaction, keyword: str):
-        """搜索订阅入口函数"""
+        """通过关键词搜索影片"""
         build_msg = MessageTemplete()
         view = discord.ui.View()
         await interaction.response.send_message("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
