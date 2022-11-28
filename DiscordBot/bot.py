@@ -1,55 +1,60 @@
-import asyncio
 import logging
+import asyncio
 import os
 import threading
+from typing import Dict
 import time
-# from io import BytesIO
-#
-# import requests
-# from PIL import Image
-
+from mbot.core.plugins import PluginMeta
+from mbot.core.plugins import plugin
+from typing import Optional
 # from moviebotapi import MovieBotServer
 # from moviebotapi.core.session import AccessKeySession
+
 from mbot.openapi import mbot_api
 
 server = mbot_api
-# server = MovieBotServer(AccessKeySession('http://192.168.5.208:1329', ''))
+# server = MovieBotServer(AccessKeySession('http://192.168.5.208:1329', '6eUk9TKHOdnm8FqfZ5tWS0Dpj4xBLizX'))
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.info("开始安装discord.py")
-os.system("pip install discord.py -i https://pypi.tuna.tsinghua.edu.cn/simple")
-import discord
+try:
+    import discord
+    from discord import app_commands, client
+    from discord.ext import commands
+except ImportError:
+    _LOGGER.info("开始安装discord.py")
+    os.system("pip install discord.py -i https://pypi.tuna.tsinghua.edu.cn/simple")
+finally:
+    import discord
+    from discord import app_commands, client
+    from discord.ext import commands
 
 
-class Bot(discord.Client):
-    async def on_ready(self):
-        _LOGGER.info(f'Logged in as {self.user} (ID: {self.user.id})')
+MY_GUILD = []
+TOKEN = None
+PROXY = None
+bot = None
 
-    async def on_message(self, message):
-        # we do not want the bot to reply to itself
-        if message.author.id == self.user.id:
-            return
-        if message.content.startswith('?search'):
-            try:
-                _, keyword = message.content.split(" ")
-            except ValueError:
-                await message.channel.send("你好像没有输入关键字，请使用**?search [关键字]**进行搜索")
-                return
-            build_msg = MessageTemplete()
-            view = discord.ui.View()
-            await message.channel.send("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
-
-
-class StartBot:
-    def __init__(self):
-        pass
-
-    def run(self, token, proxy):
+@plugin.after_setup
+def main(plugin: PluginMeta, config: Dict):
+    global PROXY, MY_GUILD, TOKEN, bot
+    PROXY = config.get("proxy")
+    MY_GUILD = config.get("guild_id")
+    try:
+        MY_GUILD = MY_GUILD.split(",")
+        for i in range(len(MY_GUILD)):
+            MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
+    except AttributeError:
+        MY_GUILD = None
+    TOKEN = config.get("token")
+    if not TOKEN:
+        _LOGGER.warning("DiscordBot:你没有配置token！")
+        return
+    else:
+        _LOGGER.info(f"{plugin.manifest.title}加载成功,{PROXY}, {MY_GUILD}, {TOKEN}")
         intents = discord.Intents.default()
-        intents.message_content = True
-        bot = Bot(proxy=proxy, intents=intents)
-        t1 = threading.Thread(target=bot.run, name="DiscordThread", args=(token,))
-        t1.start()
-
+        bot = StartBot(intents=intents, proxy=PROXY)
+        set_commands()
+        thread = threading.Thread(target=bot.run, args=(TOKEN, ), name="DiscordBotThread")
+        thread.start()
 
 class MessageTemplete:
     def build_embed(self, douban_id):
@@ -58,34 +63,37 @@ class MessageTemplete:
         _LOGGER.info(f"开始获取 豆瓣id：{douban_id} 的详细影片信息")
         douban_get = server.douban.get(douban_id)
         meta = server.meta.get_media_by_douban(media_type=douban_get.media_type, tmdb_id=douban_id)
+        try:
+            genres = ' / '.join(i for i in meta.genres)
+            country = ' / '.join(i for i in meta.country)
+            premiere_date = meta.premiere_data
+            poster_url = meta.poster_url
+            background_url = meta.background_url
+            title = meta.title
+            intro = meta.intro
+        except AttributeError:
+            genres = ' / '.join(i for i in douban_get.genres) if douban_get.genres else "暂无"
+            country = ' / '.join(i for i in douban_get.country) if douban_get.country else "暂无"
+            premiere_date = douban_get.premiere_date
+            poster_url = douban_get.cover_image
+            background_url = None
+            title = douban_get.cn_name
+            intro = douban_get.intro
         if douban_get.media_type == "TV":
             type = "📺"
         else:
-            type = "🎞️"
+            type = "🎬"
         url = douban_get.url
-        embed = discord.Embed(title=type + " " + meta.title, description=meta.intro[:150] + "······" if len(
-            meta.intro) >= 150 else meta.intro, url=url)
-        genres = ' / '.join(i for i in meta.genres)
-        country = ' / '.join(i for i in meta.country)
-        premiere_date = meta.premiere_data
+        embed = discord.Embed(title=type + " " + title, description=intro[:150] + "······" if len(
+            intro) >= 150 else intro, url=url)
         if premiere_date is None:
             premiere_date = "未播出"
         embed.set_footer(text=f"首播时间：{premiere_date}")
         embed.add_field(name="区域", value=country)
         embed.add_field(name="类型", value=genres)
-        embed.set_thumbnail(url=meta.poster_url)
+        embed.set_thumbnail(url=poster_url)
         embed.set_author(name="MovieRobot")
-        embed.set_image(url=meta.background_url)
-        # 缩小豆瓣图片后发送（增加美观 增加了发送时间 后期可能会放弃）
-        # res = requests.get(douban_get.cover_image)
-        # img = BytesIO(res.content)
-        # img = Image.open(img)
-        # width = img.size[0]
-        # height = img.size[1]
-        # img = img.resize((int(width * 0.2), int(height * 0.2)), Image.Resampling.LANCZOS)
-        # img.save("image.jpg")
-        # self.file = discord.File("image.jpg", filename="image.jpg")
-        # embed.set_image(url="attachment://image.jpg")
+        embed.set_image(url=background_url)
         t2 = time.time()
         _LOGGER.info("构建embed消耗时间：" + str((t2 - t1) * 1000) + "ms")
         return embed
@@ -151,10 +159,9 @@ class MessageTemplete:
         auto_filter.callback = Callback().auto_filter_sub
         view.add_item(auto_filter)
         for i in range(len(filters_get)):
-            exec(
-                f"temp = discord.ui.Button(label=filters_get[i].filter_name, custom_id=filters_get[i].filter_name, style=discord.ButtonStyle.primary, emoji='⌛')")
-            exec("temp.callback = Callback().select_filter_sub")
-            exec("view.add_item(temp)")
+            temp = discord.ui.Button(label=filters_get[i].filter_name, custom_id=filters_get[i].filter_name, style=discord.ButtonStyle.primary, emoji='⌛')
+            temp.callback = Callback().select_filter_sub
+            view.add_item(temp)
         return view
 
 
@@ -199,10 +206,28 @@ class Callback:
         await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
+class StartBot(discord.Client):
+    def __init__(self, *, intents: discord.Intents, proxy):
+        super().__init__(intents=intents, proxy=proxy)
+        self.tree = app_commands.CommandTree(self)
 
-def no_thread():
-    """just for test"""
-    intents = discord.Intents.default()
-    intents.message_content = True
-    bot = Bot(proxy=None, intents=intents)
-    bot.run("YOUR TOKEN")
+    async def setup_hook(self):
+        try:
+            for i in range(len(MY_GUILD)):
+                self.tree.copy_global_to(guild=MY_GUILD[i])
+                await self.tree.sync(guild=MY_GUILD[i])
+        except AttributeError as e:
+            _LOGGER.info("没有设置服务器id，无法同步应用命令，跳过")
+        except discord.errors.Forbidden as e:
+            _LOGGER.warning(f"服务器id：{MY_GUILD[i]}设置错误！请按照教程重新设置！")
+
+def set_commands():
+    @bot.tree.command()
+    @app_commands.describe(
+        keyword="关键词",
+    )
+    async def search(interaction: discord.Interaction, keyword: str):
+        """搜索订阅入口函数"""
+        build_msg = MessageTemplete()
+        view = discord.ui.View()
+        await interaction.response.send_message("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)

@@ -19,6 +19,13 @@
       "label": "代理地址",
       "helperText": "http或socks代理，可留空",
       "defaultValue": ""
+    },
+    {
+      "fieldName": "guild_id",
+      "fieldType": "String",
+      "label": "服务器ID",
+      "helperText": "获取到的服务器ID，多个ID之间用半角逗号隔开，必填，不填没法用命令",
+      "defaultValue": ""
     }
   ],
   "logoUrl": "/plugins/DiscordBot/logo.jpg",
