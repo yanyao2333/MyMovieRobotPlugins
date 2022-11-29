@@ -4,8 +4,11 @@ import os
 import threading
 from typing import Dict
 import time
+import inspect
+import ctypes
 from mbot.core.plugins import PluginMeta
 from mbot.core.plugins import plugin
+from moviebotapi import Session
 from typing import Optional
 # from moviebotapi import MovieBotServer
 # from moviebotapi.core.session import AccessKeySession
@@ -27,15 +30,37 @@ finally:
     from discord import app_commands, client
     from discord.ext import commands
 
-
 MY_GUILD = []
 TOKEN = None
 PROXY = None
 bot = None
+DiscordThread = None
+
+
+# 网上找的，用于强制关闭线程
+def _async_raise(tid, exctype):
+    """raises the exception, performs cleanup if needed"""
+    tid = ctypes.c_long(tid)
+    if not inspect.isclass(exctype):
+        exctype = type(exctype)
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
+    if res == 0:
+        _LOGGER.warning("Thread not found")
+        return False
+    elif res != 1:
+        # """if it returns a number greater than one, you're in trouble,
+        # and you should call it again with exc=NULL to revert the effect"""
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+        raise SystemError("PyThreadState_SetAsyncExc failed")
+
+
+def stop_thread(thread):
+    _async_raise(thread.ident, SystemExit)
+
 
 @plugin.after_setup
-def main(plugin: PluginMeta, config: Dict):
-    global PROXY, MY_GUILD, TOKEN, bot
+def _(plugin: PluginMeta, config: Dict):
+    global PROXY, MY_GUILD, TOKEN, bot, DiscordThread
     PROXY = config.get("proxy")
     MY_GUILD = config.get("guild_id")
     if MY_GUILD:
@@ -51,9 +76,66 @@ def main(plugin: PluginMeta, config: Dict):
         intents = discord.Intents.default()
         bot = StartBot(intents=intents, proxy=PROXY)
         set_commands()
-        thread = threading.Thread(target=bot.run, args=(TOKEN, ), name="DiscordBotThread")
-        thread.start()
-        _LOGGER.info(f"已启动{plugin.manifest.title}的线程，请自行检查日志判断成功与否")
+        DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
+        DiscordThread.start()
+        _LOGGER.info(f"已启动{plugin.manifest.title}线程，请自行检查日志判断是否成功")
+
+
+@plugin.config_changed
+def _(config: Dict):
+    global DiscordThread, TOKEN, bot, PROXY, MY_GUILD
+    _LOGGER.info("DiscordBot:配置已更新，正在重启线程")
+    PROXY = config.get("proxy")
+    MY_GUILD = config.get("guild_id")
+    if MY_GUILD:
+        MY_GUILD = MY_GUILD.split(",")
+        for i in range(len(MY_GUILD)):
+            MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
+    TOKEN = config.get("token")
+    if not TOKEN:
+        _LOGGER.warning("DiscordBot:你没有配置token！")
+        return
+    stop_thread(DiscordThread)
+    intents = discord.Intents.default()
+    bot = StartBot(intents=intents, proxy=PROXY)
+    set_commands()
+    _LOGGER.info("DiscordBot:线程已停止")
+    DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,))
+    DiscordThread.start()
+    _LOGGER.info("DiscordBot:线程已重启")
+
+# class GetLog:
+#     def __init__(self, session: Session):
+#         self._ = session
+#
+#     def getlog(self):
+#         """
+#         获取日志
+#         """
+#         res = self._.get('common.get_log_lines', params={'log_file': "robot.log"})
+#         return res
+#
+# def looping_get_log() -> str:
+#     log = GetLog(server.session).getlog()
+#     # 遍历每一行
+#     for i in range(len(log)):
+#         # 寻找日志等级ERROR
+#
+#         if "ERROR" in log[i]:
+#             err_start_line = i
+#             if "Traceback" in log[i + 1]:
+#                 # 向下查询一佰行 打印错误信息
+#                 for p in range(100):
+#                     try:
+#                         if "Error" in log[i + p]:
+#                             for key in range(p + 1):
+#                                 _LOGGER.info(log[i + key].strip())
+#                     except IndexError:
+#                         pass
+#             elif "剩余可用空间不足，跳过下载" in log[err_start_line]:
+#                 pass
+#             else:
+#                 return log[i].strip()
 
 class MessageTemplete:
     def build_embed(self, douban_id):
@@ -160,11 +242,12 @@ class MessageTemplete:
         filters_get = server.subscribe.get_filters()
         auto_filter = discord.ui.Button(label="自动选择过滤器", custom_id="auto_filter",
                                         style=discord.ButtonStyle.primary, emoji="⌛")
-        auto_filter.callback = Callback().auto_filter_sub
+        auto_filter.callback = Callback().subscirbe
         view.add_item(auto_filter)
         for i in range(len(filters_get)):
-            temp = discord.ui.Button(label=filters_get[i].filter_name, custom_id=filters_get[i].filter_name, style=discord.ButtonStyle.primary, emoji='⌛')
-            temp.callback = Callback().select_filter_sub
+            temp = discord.ui.Button(label=filters_get[i].filter_name, custom_id=filters_get[i].filter_name,
+                                     style=discord.ButtonStyle.primary, emoji='⌛')
+            temp.callback = Callback().subscirbe
             view.add_item(temp)
         return view
 
@@ -173,6 +256,7 @@ class Callback:
     douban_id = None
 
     async def menu_callback(self, interaction: discord.Interaction):
+        """一级菜单回调函数"""
         await interaction.response.defer(ephemeral=True, thinking=True)
         view = discord.ui.View()
         build_msg = MessageTemplete()
@@ -185,30 +269,29 @@ class Callback:
         await interaction.followup.send('', embed=build_msg.build_embed(douban_id=douban_id), ephemeral=True, view=view)
 
     async def cancel_button_callback(self, interaction: discord.Interaction):
+        """取消按钮回调函数"""
         _LOGGER.info("删除消息")
         await interaction.response.edit_message(content="这次取消了，下次一定哦！", view=None, embed=None)
         await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
     async def subscribe_button_callback(self, interaction: discord.Interaction):
+        """订阅按钮回调函数"""
         build_msg = MessageTemplete()
         Callback.douban_id = interaction.data.get("custom_id")
         view = build_msg.build_filter_button()
         await interaction.response.edit_message(view=view)
 
-    async def auto_filter_sub(self, interaction: discord.Interaction):
-        _LOGGER.info(f"开始自动选择过滤器订阅{self.douban_id}")
-        server.subscribe.sub_by_douban(Callback.douban_id)
-        await interaction.response.edit_message(content="✔ 订阅成功！", embed=None, view=None)
+    async def subscirbe(self, interaction: discord.Interaction):
+        """订阅"""
+        filter = interaction.data.get("custom_id") if interaction.data.get("custom_id") != "auto_filter" else None
+        _LOGGER.info(f"开始订阅{Callback.douban_id}")
+        server.subscribe.sub_by_douban(douban_id=Callback.douban_id, filter_name=filter)
+        filter_msg = f"使用 {filter} 过滤器" if filter else "自动选择过滤器"
+        await interaction.response.edit_message(content=f"✔ {filter_msg}订阅成功！", embed=None, view=None)
         await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
-    async def select_filter_sub(self, interaction: discord.Interaction):
-        filter = interaction.data.get("custom_id")
-        server.subscribe.sub_by_douban(douban_id=Callback.douban_id, filter_name=filter)
-        await interaction.response.edit_message(content=f"✔ 使用 {filter} 过滤器订阅成功！", embed=None, view=None)
-        await asyncio.sleep(2.0)
-        await interaction.delete_original_response()
 
 class StartBot(discord.Client):
     def __init__(self, *, intents: discord.Intents, proxy):
@@ -216,6 +299,7 @@ class StartBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
+        """设置启动钩子 同步应用命令"""
         try:
             for i in range(len(MY_GUILD)):
                 self.tree.copy_global_to(guild=MY_GUILD[i])
@@ -226,9 +310,14 @@ class StartBot(discord.Client):
             _LOGGER.warning(f"服务器id：{MY_GUILD[i]} 无权限，可能是获取的id不正确，请按照教程重新获取！")
 
     async def on_ready(self):
-        await self.change_presence(status=discord.Status.online, activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
+        """启动时执行"""
+        await self.change_presence(status=discord.Status.online,
+                                   activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
+
 
 def set_commands():
+    """设置应用命令"""
+
     @bot.tree.command()
     @app_commands.describe(
         keyword="关键词",
@@ -237,4 +326,13 @@ def set_commands():
         """通过关键词搜索影片"""
         build_msg = MessageTemplete()
         view = discord.ui.View()
-        await interaction.response.send_message("🔎 请点开下面的列表进行选择", view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
+        await interaction.response.send_message("🔎 请点开下面的列表进行选择",
+                                                view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
+
+    # @bot.tree.command()
+    # async def search(interaction: discord.Interaction):
+    #     """通过关键词搜索影片"""
+    #     build_msg = MessageTemplete()
+    #     view = discord.ui.View()
+    #     await interaction.response.send_message("🔎 请点开下面的列表进行选择",
+    #                                             view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
