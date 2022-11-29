@@ -347,17 +347,7 @@ async def run_log_loop():
         log, last_err_time = get_new_err_log(last_err_time)
         if log is not None:
             log = log if len(log) <= 1900 else log[:1500] + "\n\n日志过长，已截断，请去网页端查看"
-            log = log.replace("ERROR", "[2;31mERROR[0m[2;31m[0m")
-            l = re.findall(r'/\D\S*\S', log)
-            if len(l) > 0:
-                for i in l:
-                    log = log.replace(i, "[2;36m" + i + "[0m")
-            l = re.findall(r'\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}', log)
-            if len(l) > 0:
-                for i in l:
-                    log = log.replace(i, "[2;33m" + i + "[0m")
-            print(log)
-            embed = discord.Embed(title="日志报错", description=f"发生时间：{last_err_time}\n```ansi\n" + log + "```", color=0xff0000)
+            embed = discord.Embed(title="日志报错", description=f"发生时间：{last_err_time}\n```python\n" + log + "```", color=0xff0000)
             await channel.send("", embed=embed)
         await asyncio.sleep(5)
 
