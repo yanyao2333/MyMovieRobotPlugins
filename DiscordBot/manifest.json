@@ -26,6 +26,13 @@
       "label": "服务器ID",
       "helperText": "获取到的服务器ID，多个ID之间用半角逗号隔开，必填，不填没法用命令",
       "defaultValue": ""
+    },
+    {
+      "fieldName": "channel_id",
+      "fieldType": "String",
+      "label": "频道ID",
+      "helperText": "获取到的频道ID，只能有一个，用于推送错误日志，可留空",
+      "defaultValue": ""
     }
   ],
   "logoUrl": "/plugins/DiscordBot/logo.jpg",

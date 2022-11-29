@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+import re
 import threading
 from typing import Dict
 import time
@@ -8,7 +9,7 @@ import inspect
 import ctypes
 from mbot.core.plugins import PluginMeta
 from mbot.core.plugins import plugin
-from moviebotapi import Session
+import datetime
 from typing import Optional
 # from moviebotapi import MovieBotServer
 # from moviebotapi.core.session import AccessKeySession
@@ -34,7 +35,9 @@ MY_GUILD = []
 TOKEN = None
 PROXY = None
 bot = None
-DiscordThread = None
+DiscordMainThread = None
+CHANNEL_ID = None
+
 
 
 # 网上找的，用于强制关闭线程
@@ -60,8 +63,9 @@ def stop_thread(thread):
 
 @plugin.after_setup
 def _(plugin: PluginMeta, config: Dict):
-    global PROXY, MY_GUILD, TOKEN, bot, DiscordThread
+    global PROXY, MY_GUILD, TOKEN, bot, DiscordMainThread, CHANNEL_ID
     PROXY = config.get("proxy")
+    CHANNEL_ID = config.get("channel_id")
     MY_GUILD = config.get("guild_id")
     if MY_GUILD:
         MY_GUILD = MY_GUILD.split(",")
@@ -76,16 +80,17 @@ def _(plugin: PluginMeta, config: Dict):
         intents = discord.Intents.default()
         bot = StartBot(intents=intents, proxy=PROXY)
         set_commands()
-        DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
-        DiscordThread.start()
+        DiscordMainThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
+        DiscordMainThread.start()
         _LOGGER.info(f"已启动{plugin.manifest.title}线程，请自行检查日志判断是否成功")
 
 
 @plugin.config_changed
 def _(config: Dict):
-    global DiscordThread, TOKEN, bot, PROXY, MY_GUILD
+    global DiscordMainThread, TOKEN, bot, PROXY, MY_GUILD, CHANNEL_ID
     _LOGGER.info("DiscordBot:配置已更新，正在重启线程")
     PROXY = config.get("proxy")
+    CHANNEL_ID = config.get("channel_id")
     MY_GUILD = config.get("guild_id")
     if MY_GUILD:
         MY_GUILD = MY_GUILD.split(",")
@@ -95,47 +100,14 @@ def _(config: Dict):
     if not TOKEN:
         _LOGGER.warning("DiscordBot:你没有配置token！")
         return
-    stop_thread(DiscordThread)
+    stop_thread(DiscordMainThread)
     intents = discord.Intents.default()
     bot = StartBot(intents=intents, proxy=PROXY)
     set_commands()
     _LOGGER.info("DiscordBot:线程已停止")
-    DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,))
-    DiscordThread.start()
+    DiscordMainThread = threading.Thread(target=bot.run, args=(TOKEN,))
+    DiscordMainThread.start()
     _LOGGER.info("DiscordBot:线程已重启")
-
-# class GetLog:
-#     def __init__(self, session: Session):
-#         self._ = session
-#
-#     def getlog(self):
-#         """
-#         获取日志
-#         """
-#         res = self._.get('common.get_log_lines', params={'log_file': "robot.log"})
-#         return res
-#
-# def looping_get_log() -> str:
-#     log = GetLog(server.session).getlog()
-#     # 遍历每一行
-#     for i in range(len(log)):
-#         # 寻找日志等级ERROR
-#
-#         if "ERROR" in log[i]:
-#             err_start_line = i
-#             if "Traceback" in log[i + 1]:
-#                 # 向下查询一佰行 打印错误信息
-#                 for p in range(100):
-#                     try:
-#                         if "Error" in log[i + p]:
-#                             for key in range(p + 1):
-#                                 _LOGGER.info(log[i + key].strip())
-#                     except IndexError:
-#                         pass
-#             elif "剩余可用空间不足，跳过下载" in log[err_start_line]:
-#                 pass
-#             else:
-#                 return log[i].strip()
 
 class MessageTemplete:
     def build_embed(self, douban_id):
@@ -308,11 +280,86 @@ class StartBot(discord.Client):
             _LOGGER.info("没有设置服务器id，无法同步应用命令，跳过")
         except discord.errors.Forbidden as e:
             _LOGGER.warning(f"服务器id：{MY_GUILD[i]} 无权限，可能是获取的id不正确，请按照教程重新获取！")
+        bot.loop.create_task(run_log_loop())
 
     async def on_ready(self):
         """启动时执行"""
         await self.change_presence(status=discord.Status.online,
                                    activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
+
+class GetLog:
+    def __init__(self, session):
+        self._ = session
+
+    def getlog(self):
+        """
+        获取日志
+        """
+        res = self._.get('common.get_log_lines', params={'log_file': "robot.log"})
+        return res
+
+def compare_time(time1, time2):
+    time1 = time.strptime(time1, "%Y/%m/%d %H:%M:%S")
+    time2 = time.strptime(time2, "%Y/%m/%d %H:%M:%S")
+    if time1 > time2:
+        return True
+    else:
+        return False
+
+def get_new_err_log(last_err_time):
+    log = GetLog(server.session).getlog()
+    # 遍历每一行
+    for i in reversed(range(len(log))):
+        # 寻找日志等级ERROR
+        if "ERROR" in log[i]:
+            try:
+                if "Traceback" in log[i + 1]:
+                    # 向下查询一佰行 打印错误信息
+                    for p in range(100):
+                        try:
+                            if "Error" in log[i + p]:
+                                temp = ""
+                                for key in range(p + 1):
+                                    temp += log[i + key].strip() + "\n"
+                                err_time = log[i].split(" - ")[0][1:]
+                                if compare_time(err_time, last_err_time):
+                                    return temp, err_time
+                        except IndexError:
+                            pass
+            except IndexError:
+                if "剩余可用空间不足，跳过下载" in log[i] or "检测到CloudFlare 5秒盾" in log[i]:
+                    pass
+                else:
+                    err_time = log[i].split(" - ")[0][1:]
+                    if compare_time(err_time, last_err_time):
+                        return log[i], err_time
+    return None, last_err_time
+
+async def run_log_loop():
+    global last_err_time
+    await bot.wait_until_ready()
+    last_err_time = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    if CHANNEL_ID is None:
+        _LOGGER.info("没有设置频道id，无法发送错误日志，跳过")
+        return None
+    channel = bot.get_channel(int(CHANNEL_ID))
+    while not bot.is_closed():
+        log, last_err_time = get_new_err_log(last_err_time)
+        if log is not None:
+            log = log if len(log) <= 1900 else log[:1500] + "\n\n日志过长，已截断，请去网页端查看"
+            log = log.replace("ERROR", "[2;31mERROR[0m[2;31m[0m")
+            l = re.findall(r'/\D\S*\S', log)
+            if len(l) > 0:
+                for i in l:
+                    log = log.replace(i, "[2;36m" + i + "[0m")
+            l = re.findall(r'\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}', log)
+            if len(l) > 0:
+                for i in l:
+                    log = log.replace(i, "[2;33m" + i + "[0m")
+            print(log)
+            embed = discord.Embed(title="日志报错", description=f"发生时间：{last_err_time}\n```ansi\n" + log + "```", color=0xff0000)
+            await channel.send("", embed=embed)
+        await asyncio.sleep(5)
 
 
 def set_commands():
