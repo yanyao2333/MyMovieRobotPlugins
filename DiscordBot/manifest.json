@@ -2,15 +2,15 @@
   "name": "discordbot",
   "title": "discord机器人",
   "author": "yanyao",
-  "description": "用discord进行订阅操作",
-  "version": "0.1",
+  "description": "用discord订阅、查询豆瓣热榜、接收mr日志报错信息",
+  "version": "0.5",
   "requirements": [],
   "configField": [
     {
       "fieldName": "token",
       "fieldType": "String",
       "label": "token",
-      "helperText": "登录 https://discord.com/developers/applications 创建应用并进入，接着点Bot -> Add Bot -> Reset Token，复制出现的那一串token即可（别忘了在bot页打开MESSAGE CONTENT INTENT权限）",
+      "helperText": "机器人token",
       "defaultValue": ""
     },
     {
@@ -31,7 +31,7 @@
       "fieldName": "channel_id",
       "fieldType": "String",
       "label": "频道ID",
-      "helperText": "获取到的频道ID，只能有一个，用于推送错误日志，可留空",
+      "helperText": "获取到的频道ID，只能有一个，用于在mr报错时推送日志，可留空",
       "defaultValue": ""
     }
   ],
