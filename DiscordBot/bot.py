@@ -65,6 +65,7 @@ def _(plugin: PluginMeta, config: Dict):
     MY_GUILD = config.get("guild_id")
     TOKEN = config.get("token")
     if not TOKEN:
+        StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
         return
     if MY_GUILD:
@@ -93,6 +94,7 @@ def _(config: Dict):
     MY_GUILD = config.get("guild_id")
     TOKEN = config.get("token")
     if not TOKEN:
+        StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
         return
     if MY_GUILD:
@@ -272,6 +274,7 @@ class Callback:
 
     async def hot_menu_callback(self, interaction: discord.Interaction):
         """ 可选热门榜单回调函数 """
+        await interaction.response.defer()
         hot_list_name = interaction.data.get("values")[0]
         _LOGGER.info(f"获取{hot_list_name}热门列表")
         Callback.hot_list = server.douban.list_ranking(DoubanRankingType.get(hot_list_name))
@@ -285,17 +288,17 @@ class Callback:
         menu.add_option(label="一键全部订阅", value="all", emoji="⚙️")
         menu.placeholder = "🔎 请选择影片"
         menu.callback = Callback().hot_list_callback
-        await interaction.response.edit_message(content="", view=discord.ui.View().add_item(menu))
+        await interaction.edit_original_response(content="", view=discord.ui.View().add_item(menu))
 
     async def hot_list_callback(self, interaction: discord.Interaction):
         """ 单个热门榜单内容回调函数 """
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.defer()
         build_msg = MessageTemplete()
         douban_id = interaction.data.get("values")[0]
         if douban_id == "all":
             for i in range(len(Callback.hot_list)):
                 server.subscribe.sub_by_douban(douban_id=Callback.hot_list[i].id)
-            await interaction.response.edit_message(content="✔ 一键订阅所有影片成功！", embed=None, view=None)
+            await interaction.edit_original_response(content="✔ 一键订阅所有影片成功！", embed=None, view=None)
             await asyncio.sleep(2.0)
             await interaction.delete_original_response()
         else:
