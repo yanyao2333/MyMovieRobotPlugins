@@ -298,6 +298,7 @@ class Callback:
 
     async def hot_list_callback(self, interaction: discord.Interaction):
         """热门列表回调函数"""
+        await interaction.response.defer(ephemeral=True, thinking=True)
         build_msg = MessageTemplete()
         douban_id = interaction.data.get("values")[0]
         if douban_id == "all":
