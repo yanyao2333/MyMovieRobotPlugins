@@ -389,12 +389,12 @@ class ReportLog:
         global last_err_time
         await bot.wait_until_ready()
         last_err_time = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-        if CHANNEL_ID is None:
+        if not CHANNEL_ID:
             _LOGGER.info("没有设置频道id，无法发送错误日志，跳过")
             return None
         channel = bot.get_channel(int(CHANNEL_ID))
         if channel is None:
-            _LOGGER.info("频道id错误，无法发送错误日志，跳过")
+            _LOGGER.warning("频道id错误，无法发送错误日志，跳过")
             return None
         while not bot.is_closed():
             log, last_err_time = self.get_new_err_log(last_err_time)
