@@ -409,7 +409,6 @@ async def run_log_loop():
 
 
 class DoubanRankingType(Enum):
-    movie_top250 = '豆瓣电影Top250'
     movie_real_time_hotest = '实时热门电影'
     movie_weekly_best = '一周口碑电影榜'
     ECPE465QY = '近期热门电影榜'
