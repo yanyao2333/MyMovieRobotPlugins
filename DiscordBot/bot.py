@@ -35,7 +35,6 @@ bot = None
 DiscordThread = None
 CHANNEL_ID = None
 
-
 # 网上找的，用于强制关闭线程
 class StoppableThread(threading.Thread):
     def _async_raise(self, tid, exctype):
@@ -52,7 +51,10 @@ class StoppableThread(threading.Thread):
             raise SystemError("PyThreadState_SetAsyncExc failed")
 
     def stop_thread(self, thread):
-        self._async_raise(thread.ident, SystemExit)
+        if thread is not None:
+            self._async_raise(thread.ident, SystemExit)
+        else:
+            return None
 
 
 @plugin.after_setup
@@ -61,38 +63,45 @@ def _(plugin: PluginMeta, config: Dict):
     PROXY = config.get("proxy")
     CHANNEL_ID = config.get("channel_id")
     MY_GUILD = config.get("guild_id")
+    TOKEN = config.get("token")
+    if not TOKEN:
+        _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
+        return
     if MY_GUILD:
         MY_GUILD = MY_GUILD.split(",")
         for i in range(len(MY_GUILD)):
             MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
-    TOKEN = config.get("token")
-    if not TOKEN:
-        _LOGGER.warning("DiscordBot:你没有配置token！")
-        return
     else:
-        _LOGGER.info(f"{plugin.manifest.title}加载成功, proxy:{PROXY}, token:{TOKEN}")
-        intents = discord.Intents.default()
-        bot = StartBot(intents=intents, proxy=PROXY)
-        set_commands()
-        DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
-        DiscordThread.start()
-        _LOGGER.info(f"已启动{plugin.manifest.title}，请自行检查日志判断是否成功")
+        StoppableThread().stop_thread(DiscordThread)
+        _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
+        return
+    _LOGGER.info(f"{plugin.manifest.title}加载成功, proxy:{PROXY}, token:{TOKEN}")
+    intents = discord.Intents.default()
+    bot = StartBot(intents=intents, proxy=PROXY if PROXY else None)
+    set_commands()
+    DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
+    DiscordThread.start()
+    _LOGGER.info(f"已启动{plugin.manifest.title}，请自行检查日志判断是否成功")
 
 
 @plugin.config_changed
 def _(config: Dict):
     global DiscordThread, TOKEN, bot, PROXY, MY_GUILD, CHANNEL_ID
-    _LOGGER.info("DiscordBot:收到配置变更信号，正在重启应用新配置")
+    _LOGGER.info("DiscordBot:收到配置变更信号，正在应用新配置，无需重启")
     PROXY = config.get("proxy")
     CHANNEL_ID = config.get("channel_id")
     MY_GUILD = config.get("guild_id")
+    TOKEN = config.get("token")
+    if not TOKEN:
+        _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
+        return
     if MY_GUILD:
         MY_GUILD = MY_GUILD.split(",")
         for i in range(len(MY_GUILD)):
             MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
-    TOKEN = config.get("token")
-    if not TOKEN:
-        _LOGGER.warning("DiscordBot:你没有配置token！")
+    else:
+        StoppableThread().stop_thread(DiscordThread)
+        _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
         return
     StoppableThread().stop_thread(DiscordThread)
     intents = discord.Intents.default()
@@ -381,13 +390,17 @@ class ReportLog:
             _LOGGER.info("没有设置频道id，无法发送错误日志，跳过")
             return None
         channel = bot.get_channel(int(CHANNEL_ID))
+        if channel is None:
+            _LOGGER.info("频道id错误，无法发送错误日志，跳过")
+            return None
         while not bot.is_closed():
             log, last_err_time = self.get_new_err_log(last_err_time)
             if log is not None:
-                log = log if len(log) <= 1900 else log[:1900] + "\n\n日志过长，已截断，请去网页端查看"
+                log = log if len(log) <= 1900 else log[:1900] + "\n\n......\n日志过长已截断"
                 embed = discord.Embed(title="日志报错",
                                       description=f"发生时间：{last_err_time}\n```python\n" + log + "```",
                                       color=0xff0000)
+                embed.set_author(name="MovieRobot")
                 await channel.send("", embed=embed)
             await asyncio.sleep(5)
 
