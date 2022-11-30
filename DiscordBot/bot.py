@@ -1,20 +1,21 @@
-import logging
 import asyncio
-import os
-import re
-import threading
-from typing import Dict
-import time
-import inspect
 import ctypes
+import datetime
+import inspect
+import logging
+import os
+import threading
+import time
+from enum import Enum
+from typing import Dict
+
 from mbot.core.plugins import PluginMeta
 from mbot.core.plugins import plugin
-import datetime
-from typing import Optional
+from mbot.openapi import mbot_api
+from six import unichr
+
 # from moviebotapi import MovieBotServer
 # from moviebotapi.core.session import AccessKeySession
-
-from mbot.openapi import mbot_api
 
 server = mbot_api
 # server = MovieBotServer(AccessKeySession('http://192.168.5.208:1329', '6eUk9TKHOdnm8FqfZ5tWS0Dpj4xBLizX'))
@@ -37,7 +38,6 @@ PROXY = None
 bot = None
 DiscordMainThread = None
 CHANNEL_ID = None
-
 
 
 # 网上找的，用于强制关闭线程
@@ -109,6 +109,22 @@ def _(config: Dict):
     DiscordMainThread.start()
     _LOGGER.info("DiscordBot:线程已重启")
 
+
+def strB2Q(ustring):
+    """把字符串半角转全角"""
+    rstring = ""
+    for uchar in ustring:
+        inside_code = ord(uchar)
+        if inside_code < 0x0020 or inside_code > 0x7e:
+            rstring += uchar
+        if inside_code == 0x0020:
+            inside_code = 0x3000
+        else:
+            inside_code += 0xfee0
+        rstring += unichr(inside_code)
+    return rstring
+
+
 class MessageTemplete:
     def build_embed(self, douban_id):
         """使用豆瓣id构建Embed卡片 返回构建好的单个Embed"""
@@ -174,8 +190,8 @@ class MessageTemplete:
                 rating = "0.0"
             else:
                 rating = str(search_res[i].rating)
-            menu.add_option(label=emoji + "|⭐" + rating + "|" + search_res[i].cn_name,
-                            value=str(search_res[i].id) + " " + status)
+            menu.add_option(label="|⭐" + rating + "|" + search_res[i].cn_name,
+                            value=str(search_res[i].id) + " " + status, emoji=emoji)
         menu.callback = Callback().menu_callback
         return menu
 
@@ -226,6 +242,7 @@ class MessageTemplete:
 
 class Callback:
     douban_id = None
+    hot_list = None
 
     async def menu_callback(self, interaction: discord.Interaction):
         """一级菜单回调函数"""
@@ -264,6 +281,40 @@ class Callback:
         await asyncio.sleep(2.0)
         await interaction.delete_original_response()
 
+    async def hot_menu_callback(self, interaction: discord.Interaction):
+        """热门菜单回调函数"""
+        hot_list_name = interaction.data.get("values")[0]
+        _LOGGER.info(f"获取{hot_list_name}热门列表")
+        Callback.hot_list = server.douban.list_ranking(DoubanRankingType.get(hot_list_name))
+        menu = discord.ui.Select()
+        for i in range(len(Callback.hot_list)):
+            menu.add_option(
+                label=f"第{i + 1}名 | ⭐{Callback.hot_list[i].rating} | {Callback.hot_list[i].cn_name}",
+                value=str(Callback.hot_list[i].id), emoji="🏆")
+        menu.add_option(label="一键全部订阅", value="all", emoji="⚙️")
+        menu.placeholder = "🔎 请选择影片"
+        menu.callback = Callback().hot_list_callback
+        await interaction.response.edit_message(content="", view=discord.ui.View().add_item(menu))
+
+    async def hot_list_callback(self, interaction: discord.Interaction):
+        """热门列表回调函数"""
+        build_msg = MessageTemplete()
+        douban_id = interaction.data.get("values")[0]
+        if douban_id == "all":
+            for i in range(len(Callback.hot_list)):
+                server.subscribe.sub_by_douban(douban_id=Callback.hot_list[i].id)
+            await interaction.response.edit_message(content="✔ 一键订阅所有影片成功！", embed=None, view=None)
+            await asyncio.sleep(2.0)
+            await interaction.delete_original_response()
+        else:
+            btn1, btn2 = build_msg.build_button(douban_id, 3)
+            btn1.callback = Callback().cancel_button_callback
+            btn2.callback = Callback().subscribe_button_callback
+            view = discord.ui.View()
+            view.add_item(btn1)
+            view.add_item(btn2)
+            await interaction.followup.send(content="", embed=build_msg.build_embed(douban_id=douban_id), view=view)
+
 
 class StartBot(discord.Client):
     def __init__(self, *, intents: discord.Intents, proxy):
@@ -287,6 +338,7 @@ class StartBot(discord.Client):
         await self.change_presence(status=discord.Status.online,
                                    activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
 
+
 class GetLog:
     def __init__(self, session):
         self._ = session
@@ -298,6 +350,7 @@ class GetLog:
         res = self._.get('common.get_log_lines', params={'log_file': "robot.log"})
         return res
 
+
 def compare_time(time1, time2):
     time1 = time.strptime(time1, "%Y/%m/%d %H:%M:%S")
     time2 = time.strptime(time2, "%Y/%m/%d %H:%M:%S")
@@ -305,6 +358,7 @@ def compare_time(time1, time2):
         return True
     else:
         return False
+
 
 def get_new_err_log(last_err_time):
     log = GetLog(server.session).getlog()
@@ -320,7 +374,7 @@ def get_new_err_log(last_err_time):
                             if "Error" in log[i + p]:
                                 temp = ""
                                 for key in range(p + 1):
-                                    temp += log[i + key].strip() + "\n"
+                                    temp += log[i + key].strip() + "\n\n"
                                 err_time = log[i].split(" - ")[0][1:]
                                 if compare_time(err_time, last_err_time):
                                     return temp, err_time
@@ -335,6 +389,7 @@ def get_new_err_log(last_err_time):
                         return log[i], err_time
     return None, last_err_time
 
+
 async def run_log_loop():
     global last_err_time
     await bot.wait_until_ready()
@@ -347,9 +402,39 @@ async def run_log_loop():
         log, last_err_time = get_new_err_log(last_err_time)
         if log is not None:
             log = log if len(log) <= 1900 else log[:1500] + "\n\n日志过长，已截断，请去网页端查看"
-            embed = discord.Embed(title="日志报错", description=f"发生时间：{last_err_time}\n```python\n" + log + "```", color=0xff0000)
+            embed = discord.Embed(title="日志报错", description=f"发生时间：{last_err_time}\n```python\n" + log + "```",
+                                  color=0xff0000)
             await channel.send("", embed=embed)
         await asyncio.sleep(5)
+
+
+class DoubanRankingType(Enum):
+    movie_top250 = '豆瓣电影Top250'
+    movie_real_time_hotest = '实时热门电影'
+    movie_weekly_best = '一周口碑电影榜'
+    ECPE465QY = '近期热门电影榜'
+    EC7Q5H2QI = '近期高分电影榜'
+
+    tv_chinese_best_weekly = '华语口碑剧集榜'
+    tv_global_best_weekly = '全球口碑剧集榜'
+    show_chinese_best_weekly = '国内口碑综艺榜'
+    show_global_best_weekly = '国外口碑综艺榜'
+
+    ECFA5DI7Q = '近期热门美剧'
+    EC74443FY = '近期热门大陆剧'
+    ECNA46YBA = '近期热门日剧'
+    ECBE5CBEI = '近期热门韩剧'
+
+    ECAYN54KI = '近期热门喜剧'
+    ECBUOLQGY = '近期热门动作'
+    ECSAOJFTA = '近期热门爱情'
+    ECZYOJPLI = '近期热门科幻'
+    EC3UOBDQY = '近期热门动画'
+    ECPQOJP5Q = '近期热门悬疑'
+
+    @classmethod
+    def get(cls, value: str):
+        return cls(value)
 
 
 def set_commands():
@@ -363,13 +448,19 @@ def set_commands():
         """通过关键词搜索影片"""
         build_msg = MessageTemplete()
         view = discord.ui.View()
-        await interaction.response.send_message("🔎 请点开下面的列表进行选择",
-                                                view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
+        menu = build_msg.build_menu(keyword)
+        menu.placeholder = "🔎 请选择影片"
+        await interaction.response.send_message("", view=view.add_item(menu), delete_after=600.0)
 
-    # @bot.tree.command()
-    # async def search(interaction: discord.Interaction):
-    #     """通过关键词搜索影片"""
-    #     build_msg = MessageTemplete()
-    #     view = discord.ui.View()
-    #     await interaction.response.send_message("🔎 请点开下面的列表进行选择",
-    #                                             view=view.add_item(build_msg.build_menu(keyword)), delete_after=600.0)
+    @bot.tree.command()
+    async def hot(interaction: discord.Interaction):
+        """获取热门影片"""
+        build_msg = MessageTemplete()
+        view = discord.ui.View()
+        menu = discord.ui.Select()
+        hot_list = [item.value for item in DoubanRankingType]
+        for i in hot_list:
+            menu.add_option(label="🔥 " + str(i), value=str(i))
+        menu.callback = Callback().hot_menu_callback
+        menu.placeholder = "🔥 请选择要查看的热门榜单"
+        await interaction.response.send_message("", view=view.add_item(menu), delete_after=600.0)
