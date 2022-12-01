@@ -12,7 +12,6 @@ from typing import Dict
 from mbot.core.plugins import PluginMeta
 from mbot.core.plugins import plugin
 from mbot.openapi import mbot_api
-from six import unichr
 
 server = mbot_api
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +33,7 @@ PROXY = None
 bot = None
 DiscordThread = None
 CHANNEL_ID = None
+LOG_IGNORE_WORDS = None
 
 # 网上找的，用于强制关闭线程
 class StoppableThread(threading.Thread):
@@ -44,7 +44,7 @@ class StoppableThread(threading.Thread):
             exctype = type(exctype)
         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
         if res == 0:
-            _LOGGER.warning("线程不存在")
+            _LOGGER.warning("DiscordBot:线程不存在，无法杀死")
             return False
         elif res != 1:
             ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
@@ -59,9 +59,10 @@ class StoppableThread(threading.Thread):
 
 @plugin.after_setup
 def _(plugin: PluginMeta, config: Dict):
-    global PROXY, MY_GUILD, TOKEN, bot, DiscordThread, CHANNEL_ID
+    global PROXY, MY_GUILD, TOKEN, bot, DiscordThread, CHANNEL_ID, LOG_IGNORE_WORDS
     PROXY = config.get("proxy")
     CHANNEL_ID = config.get("channel_id")
+    LOG_IGNORE_WORDS = config.get("log_ignore_words") if config.get("log_ignore_words") else None
     MY_GUILD = config.get("guild_id")
     TOKEN = config.get("token")
     if not TOKEN:
@@ -76,20 +77,21 @@ def _(plugin: PluginMeta, config: Dict):
         StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
         return
-    _LOGGER.info(f"{plugin.manifest.title}加载成功, proxy:{PROXY}, token:{TOKEN}")
+    _LOGGER.info(
+        f"DiscordBot:插件加载成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{MY_GUILD}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}\n如果下方有”已登录“字样的日志，说明bot已经启动成功")
     intents = discord.Intents.default()
     bot = StartBot(intents=intents, proxy=PROXY if PROXY else None)
     set_commands()
     DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
     DiscordThread.start()
-    _LOGGER.info(f"已启动{plugin.manifest.title}，请自行检查日志判断是否成功")
 
 
 @plugin.config_changed
 def _(config: Dict):
-    global DiscordThread, TOKEN, bot, PROXY, MY_GUILD, CHANNEL_ID
+    global DiscordThread, TOKEN, bot, PROXY, MY_GUILD, CHANNEL_ID, LOG_IGNORE_WORDS
     _LOGGER.info("DiscordBot:收到配置变更信号，正在应用新配置，无需重启")
     PROXY = config.get("proxy")
+    LOG_IGNORE_WORDS = config.get("log_ignore_words") if config.get("log_ignore_words") else None
     CHANNEL_ID = config.get("channel_id")
     MY_GUILD = config.get("guild_id")
     TOKEN = config.get("token")
@@ -105,11 +107,13 @@ def _(config: Dict):
         StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
         return
+    _LOGGER.info(
+        f"DiscordBot:配置变更成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{MY_GUILD}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}")
     StoppableThread().stop_thread(DiscordThread)
     intents = discord.Intents.default()
     bot = StartBot(intents=intents, proxy=PROXY if PROXY else None)
     set_commands()
-    DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,))
+    DiscordThread = threading.Thread(target=bot.run, args=(TOKEN,), name="DiscordBot")
     DiscordThread.start()
 
 class MessageTemplete:
@@ -178,9 +182,7 @@ class MessageTemplete:
                 rating = "0.0"
             else:
                 rating = str(search_res[i].rating)
-            rating = ''.join(unichr(ord(c) + 0xFEE0) if c.isdigit() else c for c in rating)
-            cn_name = ''.join(unichr(ord(c) + 0xFEE0) if c.isdigit() else c for c in search_res[i].cn_name)
-            menu.add_option(label=" | ⭐" + rating + " | " + cn_name,
+            menu.add_option(label=" | ⭐" + rating + " | " + search_res[i].cn_name,
                             value=str(search_res[i].id) + " " + status, emoji=emoji)
         menu.callback = Callback().menu_callback
         return menu
@@ -214,7 +216,7 @@ class MessageTemplete:
         """ 构建过滤器选择界面按钮 """
         filters = []
         view = discord.ui.View()
-        cancel_button = discord.ui.Button(label="取消", custom_id="cancle", style=discord.ButtonStyle.danger, emoji="❌")
+        cancel_button = discord.ui.Button(label="取消", custom_id="cancel", style=discord.ButtonStyle.danger, emoji="❌")
         cancel_button.callback = Callback().cancel_button_callback
         view.add_item(cancel_button)
         filters_get = server.subscribe.get_filters()
@@ -280,10 +282,8 @@ class Callback:
         Callback.hot_list = server.douban.list_ranking(DoubanRankingType.get(hot_list_name))
         menu = discord.ui.Select()
         for i in range(len(Callback.hot_list)):
-            rating = ''.join(unichr(ord(c) + 0xFEE0) if c.isdigit() else c for c in str(Callback.hot_list[i].rating))
-            cn_name = ''.join(unichr(ord(c) + 0xFEE0) if c.isdigit() else c for c in Callback.hot_list[i].cn_name)
             menu.add_option(
-                label=f"第{i + 1}名 | ⭐{rating} | {cn_name}",
+                label=f"第{i + 1}名 | ⭐{str(Callback.hot_list[i].rating)} | {Callback.hot_list[i].cn_name}",
                 value=str(Callback.hot_list[i].id), emoji="🏆")
         menu.add_option(label="一键全部订阅", value="all", emoji="⚙️")
         menu.placeholder = "🔎 请选择影片"
@@ -331,6 +331,7 @@ class StartBot(discord.Client):
 
     async def on_ready(self):
         """ 启动时执行 """
+        _LOGGER.info(f"已登录：{self.user}")
         await self.change_presence(status=discord.Status.online,
                                    activity=discord.Activity(type=discord.ActivityType.listening, name='/search'))
 
@@ -357,8 +358,12 @@ class ReportLog:
         else:
             return False
 
-    def get_new_err_log(self, last_err_time):
+    def get_new_err_log(self, last_error_time):
         """ 获取最新的错误日志 """
+        if LOG_IGNORE_WORDS:
+            ignore_words = LOG_IGNORE_WORDS.split(",")
+        else:
+            ignore_words = []
         log = GetLog(server.session).getlog()
         for i in reversed(range(len(log))):
             if "ERROR" in log[i]:
@@ -370,19 +375,22 @@ class ReportLog:
                                     temp = ""
                                     for key in range(p + 1):
                                         temp += log[i + key].strip() + "\n\n"
+                                        for word in ignore_words:
+                                            if word in temp:
+                                                return None, last_error_time
                                     err_time = log[i].split(" - ")[0][1:]
-                                    if self.compare_time(err_time, last_err_time):
+                                    if self.compare_time(err_time, last_error_time):
                                         return temp, err_time
                             except IndexError:
                                 pass
                 except IndexError:
-                    if "剩余可用空间不足，跳过下载" in log[i] or "检测到CloudFlare 5秒盾" in log[i]:
-                        pass
-                    else:
-                        err_time = log[i].split(" - ")[0][1:]
-                        if self.compare_time(err_time, last_err_time):
-                            return log[i], err_time
-        return None, last_err_time
+                    for word in ignore_words:
+                        if word in log[i]:
+                            return None, last_error_time
+                    err_time = log[i].split(" - ")[0][1:]
+                    if self.compare_time(err_time, last_error_time):
+                        return log[i], err_time
+        return None, last_error_time
 
     async def run_log_loop(self):
         """ 运行获取最新错误日志循环 """

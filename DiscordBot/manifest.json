@@ -33,6 +33,13 @@
       "label": "频道ID",
       "helperText": "获取到的频道ID，只能有一个，用于在mr报错时推送日志，可留空",
       "defaultValue": ""
+    },
+    {
+      "fieldName": "log_ignore_words",
+      "fieldType": "String",
+      "label": "日志忽略关键词",
+      "helperText": "包含这些关键词的错误日志不会被推送，多个关键词之间用半角逗号隔开，可留空",
+      "defaultValue": "剩余可用空间不足，跳过下载,检测到CloudFlare 5秒盾"
     }
   ],
   "logoUrl": "/plugins/DiscordBot/logo.jpg",
