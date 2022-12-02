@@ -11,7 +11,9 @@
 
 -----
 
-创建bot：https://discord.com/developers/applications 创建应用并进入，接着点Bot -> Add Bot -> Reset
+## 创建bot
+
+https://discord.com/developers/applications 创建应用并进入，接着点Bot -> Add Bot -> Reset
 Token，复制出现的一串token即可（别忘了在bot页打开MESSAGE CONTENT INTENT权限）
 
 bot页配置：![配置](images/MESSAGE_CONTENT_INTENT.png)
@@ -29,7 +31,15 @@ client id获取：
 
 -----
 
+## 使用方法
+
+输入 / 会显示所有命令，自行选择即可
+
+-----
+
 ## Q&A
 
 1. 日志停留在`DiscordBot - INFO: logging in using static token`，没有出现`已登录xxx#xxxx`，bot没有上线，且下面没有其他报错
-    - 检查网络是否正常
+   - 检查网络是否正常
+2. 报错`discord.errors.NotFound： 404 Not Found（error code： 10062）：Unknown interaction`
+   - 再试一次即可（本质上还是网络不好，新版本已经尝试修复此问题）

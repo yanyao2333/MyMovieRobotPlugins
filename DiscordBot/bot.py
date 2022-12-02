@@ -52,14 +52,14 @@ def _(plugin: PluginMeta, config: Dict):
     PROXY = config.get("proxy")
     CHANNEL_ID = config.get("channel_id")
     LOG_IGNORE_WORDS = config.get("log_ignore_words") if config.get("log_ignore_words") else None
-    MY_GUILD = config.get("guild_id")
+    _MY_GUILD_raw = config.get("guild_id")
     TOKEN = config.get("token")
     if not TOKEN:
         StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
         return
-    if MY_GUILD:
-        MY_GUILD = MY_GUILD.split(",")
+    if _MY_GUILD_raw:
+        MY_GUILD = _MY_GUILD_raw.split(",")
         for i in range(len(MY_GUILD)):
             MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
     else:
@@ -67,7 +67,7 @@ def _(plugin: PluginMeta, config: Dict):
         _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
         return
     _LOGGER.info(
-        f"DiscordBot:插件加载成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{MY_GUILD}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}\n如果下方有”已登录“字样的日志，说明bot已经启动成功")
+        f"DiscordBot:插件加载成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{_MY_GUILD_raw}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}\n如果下方有”已登录“字样的日志，说明bot已经启动成功")
     intents = discord.Intents.default()
     bot = StartBot(intents=intents, proxy=PROXY if PROXY else None)
     set_commands()
@@ -82,14 +82,14 @@ def _(config: Dict):
     PROXY = config.get("proxy")
     LOG_IGNORE_WORDS = config.get("log_ignore_words") if config.get("log_ignore_words") else None
     CHANNEL_ID = config.get("channel_id")
-    MY_GUILD = config.get("guild_id")
+    _MY_GUILD_raw = config.get("guild_id")
     TOKEN = config.get("token")
     if not TOKEN:
         StoppableThread().stop_thread(DiscordThread)
         _LOGGER.error("DiscordBot:你没有配置token，bot已停止！请配置token")
         return
-    if MY_GUILD:
-        MY_GUILD = MY_GUILD.split(",")
+    if _MY_GUILD_raw:
+        MY_GUILD = _MY_GUILD_raw.split(",")
         for i in range(len(MY_GUILD)):
             MY_GUILD[i] = discord.Object(id=MY_GUILD[i])
     else:
@@ -97,7 +97,7 @@ def _(config: Dict):
         _LOGGER.error("DiscordBot:你没有配置服务器id，bot已停止！请配置服务器id")
         return
     _LOGGER.info(
-        f"DiscordBot:配置变更成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{MY_GUILD}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}")
+        f"DiscordBot:配置变更成功, proxy:{PROXY}, token:{TOKEN[:15] + '**********'}, 服务器id:{_MY_GUILD_raw}, 频道id:{CHANNEL_ID}, 跳过词:{LOG_IGNORE_WORDS}")
     StoppableThread().stop_thread(DiscordThread)
     intents = discord.Intents.default()
     bot = StartBot(intents=intents, proxy=PROXY if PROXY else None)
@@ -107,7 +107,8 @@ def _(config: Dict):
 
 class MessageTemplete:
     """ 消息模板 """
-    def build_embed(self, douban_id):
+
+    def build_embed(self, douban_id, is_from_hot_list=False):
         """ 使用豆瓣id构建Embed卡片 返回构建好的单个Embed """
         t1 = time.time()
         _LOGGER.info(f"开始获取 豆瓣id：{douban_id} 的详细影片信息")
@@ -135,8 +136,11 @@ class MessageTemplete:
         else:
             type = "🎬"
         url = douban_get.url
-        embed = discord.Embed(title=type + " " + title, description=intro[:150] + "······" if len(
-            intro) >= 150 else intro, url=url)
+        if is_from_hot_list:
+            description = intro
+        else:
+            description = intro[:200] + "······" if len(intro) >= 200 else intro
+        embed = discord.Embed(title=type + " " + title, description=description, url=url)
         if premiere_date is None:
             premiere_date = "未播出"
         embed.set_footer(text=f"首播时间：{premiere_date}")
@@ -154,6 +158,8 @@ class MessageTemplete:
         _LOGGER.info(f"开始获取 关键词：{keyword} 的搜索结果")
         menu = discord.ui.Select()
         search_res = server.douban.search(keyword)
+        if not search_res:
+            return None
         for i in range(len(search_res)):
             if search_res[i].status is None:
                 status = '3'
@@ -297,7 +303,9 @@ class Callback:
             view = discord.ui.View()
             view.add_item(btn1)
             view.add_item(btn2)
-            await interaction.followup.send(content="", embed=build_msg.build_embed(douban_id=douban_id), view=view)
+            await interaction.followup.send(content="",
+                                            embed=build_msg.build_embed(douban_id=douban_id, is_from_hot_list=True),
+                                            view=view)
 
 
 class StartBot(discord.Client):
@@ -443,15 +451,24 @@ def set_commands():
     )
     async def search(interaction: discord.Interaction, keyword: str):
         """ 通过关键词搜索影片 """
+        await interaction.response.defer()
         build_msg = MessageTemplete()
         view = discord.ui.View()
         menu = build_msg.build_menu(keyword)
+        if menu is None:
+            await interaction.followup.send(f"没有找到与”{keyword}“相关影片，请尝试更换关键词")
+            await asyncio.sleep(10.0)
+            await interaction.delete_original_response()
+            return None
+        _LOGGER.info(menu)
         menu.placeholder = "🔎 请选择影片"
-        await interaction.response.send_message("", view=view.add_item(menu), delete_after=600.0)
+        await interaction.followup.send("", view=view.add_item(menu))
+        await asyncio.sleep(600.0)
+        await interaction.delete_original_response()
 
     @bot.tree.command()
     async def hot(interaction: discord.Interaction):
-        """ 获取热门影片 """
+        """ 获取豆瓣热门榜单影片 """
         build_msg = MessageTemplete()
         view = discord.ui.View()
         menu = discord.ui.Select()
