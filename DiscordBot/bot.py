@@ -3,29 +3,18 @@ import ctypes
 import datetime
 import inspect
 import logging
-import os
 import threading
 import time
 from enum import Enum
 from typing import Dict
 
+import discord
 from mbot.core.plugins import PluginMeta
 from mbot.core.plugins import plugin
 from mbot.openapi import mbot_api
 
 server = mbot_api
 _LOGGER = logging.getLogger(__name__)
-try:
-    import discord
-    from discord import app_commands, client
-    from discord.ext import commands
-except ImportError:
-    _LOGGER.info("开始安装discord.py")
-    os.system("pip install discord.py -i https://pypi.tuna.tsinghua.edu.cn/simple")
-finally:
-    import discord
-    from discord import app_commands, client
-    from discord.ext import commands
 
 MY_GUILD = []
 TOKEN = None
@@ -315,7 +304,7 @@ class StartBot(discord.Client):
     """ 启动机器人 """
     def __init__(self, *, intents: discord.Intents, proxy):
         super().__init__(intents=intents, proxy=proxy)
-        self.tree = app_commands.CommandTree(self)
+        self.tree = discord.app_commands.CommandTree(self)
 
     async def setup_hook(self):
         """ 设置启动钩子 同步应用命令 创建错误日志获取循环 """
@@ -449,7 +438,7 @@ def set_commands():
     """设置应用命令"""
 
     @bot.tree.command()
-    @app_commands.describe(
+    @discord.app_commands.describe(
         keyword="关键词",
     )
     async def search(interaction: discord.Interaction, keyword: str):
