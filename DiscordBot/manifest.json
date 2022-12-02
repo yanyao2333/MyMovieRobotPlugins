@@ -43,5 +43,6 @@
     }
   ],
   "logoUrl": "/plugins/DiscordBot/logo.jpg",
-  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/DiscordBot"
+  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/DiscordBot",
+  "helpDocUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/blob/master/DiscordBot/readme.md"
 }
