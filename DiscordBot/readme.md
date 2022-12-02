@@ -39,7 +39,14 @@ client id获取：
 
 ## Q&A
 
+```diff
+- 输入命令后出现任何报错都请先重试一两次，discord会偶尔抽风，如果还不行再问！！！
+```
+
 1. 日志停留在`DiscordBot - INFO: logging in using static token`，没有出现`已登录xxx#xxxx`，bot没有上线，且下面没有其他报错
    - 检查网络是否正常
 2. 报错`discord.errors.NotFound： 404 Not Found（error code： 10062）：Unknown interaction`
    - 再试一次即可（本质上还是网络不好，新版本已经尝试修复此问题）
+3. 报错`The specified option value is already used`
+   - 再试一次基本就没有问题了
+   - 检查mr是否在正常运行
