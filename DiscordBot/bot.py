@@ -460,7 +460,6 @@ def set_commands():
             await asyncio.sleep(10.0)
             await interaction.delete_original_response()
             return None
-        _LOGGER.info(menu)
         menu.placeholder = "🔎 请选择影片"
         await interaction.followup.send("", view=view.add_item(menu))
         await asyncio.sleep(600.0)
