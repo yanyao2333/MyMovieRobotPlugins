@@ -37,5 +37,4 @@ def download(ctx: PluginCommandContext,
         tasks.append(BilibiliVideoProcess(video_id, if_get_character=if_people_path, emby_persons_path=people_path,
                                           media_path=media_path).process())
     loop.run_until_complete(asyncio.wait(tasks))
-    loop.close()
     return PluginCommandResponse(True, '已下载完成，请刷新emby媒体库')

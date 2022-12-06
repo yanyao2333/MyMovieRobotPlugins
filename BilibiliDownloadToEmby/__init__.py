@@ -10,4 +10,4 @@ except ImportError:
 finally:
     import bilibili_api
 
-from .command import *
+from .commands import *
