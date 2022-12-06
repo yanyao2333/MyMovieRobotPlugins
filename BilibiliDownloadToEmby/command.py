@@ -1,48 +1,41 @@
+import re
+
 from mbot.core.params import ArgSchema, ArgType
 from mbot.core.plugins import plugin, PluginCommandContext, PluginCommandResponse
-from mbot.openapi import mbot_api
 
-from .mr_api import *
 from .process_bilibili import *
 
 _LOGGER = logging.getLogger(__name__)
-server = mbot_api
 
 
-def if_get_character():
-    api = ScraperApi(server.session)
-    resp = api.config()
-    if resp.get('use_cn_person_name'):
-        return True, resp.get('person_nfo_path')
-    else:
-        return False, None
+def find_bv(url):
+    bv = re.search(r'(?<=BV)[\w\d]+', url)
+    if bv:
+        return "BV" + bv.group(0)
+    return None
 
 
-def get_media_path():
-    api = MediaPath(server.session)
-    resp = api.config()
-    for i in resp.get('paths'):
-        if 'bilibili' in i.get('target_dir') or 'Bilibili' in i.get('target_dir') or 'BILIBILI' in i.get('target_dir'):
-            return i.get('target_dir')
-        elif i.get('type') == 'movie':
-            return i.get('target_dir')
-
-
-@plugin.command(name='download', title='下载bilibili视频', desc='下载bilibili视频并自动刮削', icon='StarRate',
+@plugin.command(name='download', title='下载bilibili视频', desc='下载bilibili视频并自动刮削', icon='CloudDownload',
                 run_in_background=True)
-def download(ctx: PluginCommandContext, video_id: ArgSchema(ArgType.String, '需要下载的bv号', 'bv号')):
+def download(ctx: PluginCommandContext,
+             video_id: ArgSchema(ArgType.String, 'BV号或网址', '需要下载的视频的BV号，多个请用半角逗号隔开')):
     # 获取当前文件位置
     _LOGGER.info(os.path.abspath(__file__))
     video_id = video_id.split(',') if ',' in video_id else video_id
     _LOGGER.info(f'video_id: {video_id}')
-    if_people_path, people_path = if_get_character()
-    media_path = get_media_path()
+    if_people_path, people_path = Utils.if_get_character()
+    media_path = Utils.get_media_path()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    tasks = []
     if type(video_id) == list:
         for i in video_id:
-            asyncio.run(ProcessOneVideo(i, if_get_character=if_people_path, emby_persons_path=people_path,
-                                        media_path=media_path).process())
+            i = find_bv(i) if find_bv(i) else i
+            tasks.append(BilibiliVideoProcess(i, if_get_character=if_people_path, emby_persons_path=people_path,
+                                              media_path=media_path).process())
     else:
-        downloader = ProcessOneVideo(video_id, if_get_character=if_people_path, emby_persons_path=people_path,
-                                     media_path=media_path)
-        asyncio.run(downloader.process())
-    return PluginCommandResponse(True, '已提交下载任务')
+        tasks.append(BilibiliVideoProcess(video_id, if_get_character=if_people_path, emby_persons_path=people_path,
+                                          media_path=media_path).process())
+    loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
+    return PluginCommandResponse(True, '已下载完成，请刷新emby媒体库')
