@@ -14,7 +14,7 @@ from bilibili_api.utils.utils import get_api
 from moviebotapi import MovieBotServer
 from moviebotapi.core.session import AccessKeySession
 
-from constant import SERVER_URL, ACCESS_KEY
+from .constant import SERVER_URL, ACCESS_KEY
 
 server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 API = get_api("login")
@@ -42,7 +42,6 @@ def send_qrcode(token, img):
     res = requests.post(url="https://tucang.cc/api/v1/upload", params=params,
                         files=files)  # 上传二维码用于发送 我是在找不到什么免登录还能有api的图床了。。。就先用这个吧，记得在下面填上token
     res = res.json()
-    print(res)
     if res['code'] == '200':
         server.notify.send_message_by_tmpl(title="截图扫码登录（请在120s内登录）",
                                            context={'pic_url': res['data']['url']},
@@ -63,9 +62,8 @@ def events():
             cookies={"buvid3": str(uuid.uuid1()), "Domain": ".bilibili.com"},
         ).text
     )
-    print(events)
-    if "code" in events.keys() and events["code"] == -412:
-        print('nnnnnn')
+    # if "code" in events.keys() and events["code"] == -412:
+    #     print('nnnnnn')
     if isinstance(events["data"], dict):
         url = events["data"]["url"]
         cookies_list = url.split("?")[1].split("&")
