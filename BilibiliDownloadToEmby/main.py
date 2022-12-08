@@ -2,6 +2,7 @@
 主文件 包含工具类和主类
 """
 import asyncio
+import datetime
 import logging
 import os
 import shutil
@@ -13,21 +14,32 @@ import ffmpeg
 import httpx
 import pypinyin
 import tenacity
-from bilibili_api import video, Credential, HEADERS, exceptions
+from bilibili_api import video, Credential, exceptions, user
 from lxml import etree
-from mbot.openapi import mbot_api
+# from mbot.openapi import mbot_api
 
-from .constant import SESSDATA, BILI_JCT, BUVID3
-from .mr_api import *
+import loguru
+from moviebotapi import MovieBotServer
+import datetime
+from moviebotapi.core.session import AccessKeySession
+from constant import SERVER_URL, ACCESS_KEY, SESSDATA, BILI_JCT, BUVID3
+from mr_api import *
+from process_pages_video import *
 
-_LOGGER = logging.getLogger(__name__)
-# _LOGGER = loguru.logger
-# server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
+# from bilibili_login import LoginBilibili
+
+# _LOGGER = logging.getLogger(__name__)
+_LOGGER = loguru.logger
+server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 local_path = os.path.split(os.path.realpath(__file__))[0]
-server = mbot_api
+# server = mbot_api
+credential = None
 
 
-class BilibiliVideoProcess:
+# init_time = time.
+
+
+class BilibiliOneVideoProcess:
     """bilibili视频下载入库刮削实现类 调用process即可完成单个bv号的下载入库刮削"""
 
     def __init__(self, video_id: str, media_path: str, emby_persons_path: str = None, if_get_character: bool = False):
@@ -38,33 +50,40 @@ class BilibiliVideoProcess:
         :param if_get_character: 是否获取角色信息
         :param media_path: 媒体路径
         """
+        self.type = None
         self.media_path = media_path
         self.if_get_character = if_get_character
         self.emby_persons_path = emby_persons_path
         self.video_id = video_id
-        self.credential = Credential(sessdata=SESSDATA, bili_jct=BILI_JCT, buvid3=BUVID3)
+        self.credential = None
         self.video_info = None
         _LOGGER.info(
             f"开始处理视频 {video_id}，emby人物路径为 {emby_persons_path}， 媒体路径为 {media_path}， 是否获取角色信息为 {if_get_character}")
 
-    async def _get_video_info(self):
+    async def _get_video_info(self, *args, **kwargs):
         """获取视频信息"""
         v = video.Video(bvid=self.video_id, credential=self.credential)
-        self.video_info = await v.get_info()
+        try:
+            self.video_info = await v.get_info()
+        except Exception:
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确！")
+            _LOGGER.error(tracebacklog)
+            return None
 
-    async def _download_video(self):
+    async def _download_video(self, *args, **kwargs):
         """下载视频"""
         try:
             v = video.Video(bvid=self.video_id, credential=self.credential)
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             if not os.path.exists(f"{local_path}/{self.video_info['title']} ({raw_year})"):
                 os.makedirs(f"{local_path}/{self.video_info['title']} ({raw_year})", exist_ok=True)
+            _LOGGER.info(f"收到视频 {self.video_info['title']} 下载请求，开始下载到临时文件夹")
+            path = f'{local_path}/{self.video_info["title"]} ({raw_year})/video_temp.m4s'
             url = await v.get_download_url(0)
             video_url = url["dash"]["video"][0]['baseUrl']
             audio_url = url["dash"]["audio"][0]['baseUrl']
-            _LOGGER.info(f"收到视频 {self.video_info['title']} 下载请求，开始下载到临时文件夹")
-            path = f'{local_path}/{self.video_info["title"]} ({raw_year})/video_temp.m4s'
-            res = await DownloadFunc(video_url, path).download_from_url()
+            res = await DownloadFunc(video_url, path).download_with_resume()
             if res:
                 _LOGGER.info(f"视频 {self.video_info['title']} 下载完成")
             else:
@@ -72,7 +91,7 @@ class BilibiliVideoProcess:
                 Utils.delete_video_folder(self.video_info)
                 return None
             path = f'{local_path}/{self.video_info["title"]} ({raw_year})/audio_temp.m4s'
-            res = await DownloadFunc(audio_url, path).download_from_url()
+            res = await DownloadFunc(audio_url, path).download_with_resume()
             if res:
                 _LOGGER.info(f"音频 {self.video_info['title']} 下载完成")
             else:
@@ -95,14 +114,14 @@ class BilibiliVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _download_video_cover(self):
+    async def _download_video_cover(self, *args, **kwargs):
         """下载视频封面"""
         if Utils.read_error_video(self.video_info):
             return
         _LOGGER.info("开始下载视频封面")
         raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
         path = f'{local_path}/{self.video_info["title"]} ({raw_year})/poster.jpg'
-        res = await DownloadFunc(self.video_info["pic"], path).download_from_url()
+        res = await DownloadFunc(self.video_info["pic"], path).download_cover()
         if res:
             _LOGGER.info("视频封面下载完成")
         else:
@@ -110,15 +129,15 @@ class BilibiliVideoProcess:
             Utils.delete_video_folder(self.video_info)
             return None
 
-    async def _gen_video_nfo(self):
+    async def _gen_video_nfo(self, *args, **kwargs):
         """生成视频nfo文件"""
         try:
             if Utils.read_error_video(self.video_info):
                 return
             _LOGGER.info("开始生成视频nfo文件")
             video_info = self.video_info
-            raw_year = time.strftime("%Y", time.localtime(video_info["pubdate"]))
             root = etree.Element("video")
+            raw_year = time.strftime("%Y", time.localtime(video_info["pubdate"]))
             title = etree.SubElement(root, "title")
             title.text = video_info["title"]
             plot = etree.SubElement(root, "plot")
@@ -134,7 +153,7 @@ class BilibiliVideoProcess:
             genre = etree.SubElement(root, "genre")
             genre.text = video_info["tname"]
             runtime = etree.SubElement(root, "runtime")
-            runtime.text = str(int(video_info["duration"] / 60))
+            runtime.text = str(video_info["duration"] // 60)
             try:
                 for character in video_info["staff"]:
                     actor = etree.SubElement(root, "actor")
@@ -163,7 +182,7 @@ class BilibiliVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _gen_character_nfo(self):
+    async def _gen_character_nfo(self, *args, **kwargs):
         """生成up主信息 当前问题：以英文开头的up主生成的nfo无法被emby识别"""
         try:
             if Utils.read_error_video(self.video_info):
@@ -215,7 +234,7 @@ class BilibiliVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _download_character_folder(self):
+    async def _download_character_folder(self, *args, **kwargs):
         """下载up主头像"""
         if Utils.read_error_video(self.video_info):
             return
@@ -226,25 +245,21 @@ class BilibiliVideoProcess:
             for character in video_info["staff"]:
                 path = f'{local_path}/{self.video_info["title"]} ({raw_year})/character/{character["name"]}/folder.jpg'
                 _LOGGER.info(f"开始下载up主{character['name']}头像")
-                res = await DownloadFunc(character["face"], path).download_from_url()
+                res = await DownloadFunc(character["face"], path).download_cover()
                 if res:
                     _LOGGER.info(f"up主{character['name']}头像下载完成")
-                else:
-                    _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
-                    Utils.write_error_video(self.video_info)
-                    Utils.delete_video_folder(self.video_info)
         except KeyError:
             _LOGGER.info(f"开始下载up主{video_info['owner']['name']}头像")
             path = f'{local_path}/{self.video_info["title"]} ({raw_year})/character/{video_info["owner"]["name"]}/folder.jpg'
-            res = await DownloadFunc(video_info["owner"]["face"], path).download_from_url()
+            res = await DownloadFunc(video_info["owner"]["face"], path).download_cover()
             if res:
                 _LOGGER.info("up主头像下载完成")
-            else:
-                _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
-                Utils.write_error_video(self.video_info)
-                Utils.delete_video_folder(self.video_info)
+        else:
+            _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
+            Utils.write_error_video(self.video_info)
+            Utils.delete_video_folder(self.video_info)
 
-    async def _move_character_folder(self):
+    async def _move_character_folder(self, *args, **kwargs):
         """移动up主信息到emby演员文件夹"""
         try:
             if Utils.read_error_video(self.video_info):
@@ -300,7 +315,7 @@ class BilibiliVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _move_video_folder(self):
+    async def _move_video_folder(self, *args, **kwargs):
         """移动视频文件夹到指定媒体库文件夹"""
         try:
             if Utils.read_error_video(self.video_info):
@@ -329,16 +344,21 @@ class BilibiliVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def process(self):
+    async def process(self, *args, **kwargs):
         """运行入口函数"""
         if not os.path.exists(f"{local_path}/error_video.txt"):
             with open(f"{local_path}/error_video.txt", "w") as f:
                 f.write("该文件用于记录下载失败的视频id，以便下次重试，请勿删除\n")
+        if len(await video.Video(bvid=self.video_id, credential=self.credential).get_pages()) != 1:
+            _LOGGER.warning(f"视频{self.video_id}不是单P视频，开始进行特殊处理（这部分代码没咋测试，报错请call我，谢谢）")
+            await run_pages_video(self.video_id, self.if_get_character, self.emby_persons_path, self.media_path)
+            return
         try:
             await self._get_video_info()
-        except exceptions.ArgsException as e:
-            _LOGGER.error(f"参数错误：{e}")
-            _LOGGER.error("请重新输入bv号再试！")
+        except Exception:
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确")
+            _LOGGER.error(tracebacklog)
             return
         if Utils.read_error_video(self.video_info):
             return
@@ -418,15 +438,18 @@ class Utils:
             return False, None
 
     @staticmethod
-    def get_media_path():
-        """获取mr媒体路径（识别逻辑：优先选择带有bilibili的媒体路径，其次选择最靠前的movie类型的路径），如果都没有就返回第一个路径"""
+    def get_media_path(type):
+        """
+        获取mr媒体路径 逻辑：优先选择最靠前的movie/tv类型的路径，如果都没有就返回第一个路径
+
+        :param type: 视频是否分P，如果分P则为True，否则为False
+        """
         api = MediaPath(server.session)
         resp = api.config()
         for i in resp.get('paths'):
-            if 'bilibili' in i.get('target_dir') or 'Bilibili' in i.get('target_dir') or 'BILIBILI' in i.get(
-                    'target_dir'):
+            if i.get('type') == 'tv' and type:
                 return i.get('target_dir')
-            elif i.get('type') == 'movie':
+            elif i.get('type') == 'movie' and not type:
                 return i.get('target_dir')
         return resp.get('paths')[0].get('target_dir')
 
@@ -442,35 +465,48 @@ class Utils:
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
 
-def retry_video():
-    """重试下载之前失败的视频 被定时任务调用 每次最多重试5个 防止被封ip"""
+async def retry_video():
+    """
+    重试下载之前失败的视频 被定时任务调用 每次最多重试2个 防止被封ip
+    这功能没测试过，鬼知道能不能用，报错了自认倒霉
+    """
     error_video_list = Utils.get_error_video_list()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     tasks = []
     i = 0
-    for error_video in error_video_list and i < 5:
-        _LOGGER.info(f"开始重试下载失败的视频{error_video}")
+    for error_video in error_video_list and i <= 2:
+        _LOGGER.info(f"开始重试下载失败的视频 {error_video}")
         if_people_path, people_path = Utils.if_get_character()
-        media_path = Utils.get_media_path()
+        v = video.Video(bvid=error_video)
+        if len(await v.get_pages()) > 1:
+            type = True
+        else:
+            type = False
+        media_path = Utils.get_media_path(type)
         Utils.remove_error_video({"bvid": error_video})
-        tasks.append(BilibiliVideoProcess(error_video, if_get_character=if_people_path, media_path=media_path,
-                                          emby_persons_path=people_path).process())
+        tasks.append(BilibiliOneVideoProcess(error_video, if_get_character=if_people_path, media_path=media_path,
+                                             emby_persons_path=people_path).process())
         _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
         i += 1
     loop.run_until_complete(asyncio.wait(tasks))
 
 
-# class ListenUploadVideo:
-#     """查询用户是否发新视频，配合定时任务使用"""
-#     def __init__(self, uid, if_get_character=False, media_path=None, emby_persons_path=None):
-#         self.uid = uid
-#         self.if_get_character = if_get_character
-#         self.media_path = media_path
-#         self.emby_persons_path = emby_persons_path
-#
-#     async def listen_new(self):
-#         await user.User(credential=).get_videos()
+class ListenUploadVideo:
+    """查询用户是否发新视频，配合定时任务使用"""
+
+    def __init__(self, uid=123, if_get_character=False, media_path=None, emby_persons_path=None):
+        self.uid = uid
+        self.if_get_character = if_get_character
+        self.media_path = media_path
+        self.emby_persons_path = emby_persons_path
+
+    async def listen_new(self):
+        ll = await user.User(credential=credential, uid=168598).get_videos()
+        v = video.Video(bvid="BV1S14y1J7Hv", credential=credential)
+        ll = await v.get_pages()
+        pl = await v.get_info()
+        print(ll)
 
 
 class Notify:
@@ -488,7 +524,7 @@ class Notify:
         message = f"视频标题：{self.video_info['title']}\n" \
                   f"视频简介：{desc}\n" \
                   f"视频发布时间：{pubtime}\n" \
-                  f"视频时长：{str(int(self.video_info['duration'] / 60))}分钟\n" \
+                  f"视频时长：{str(self.video_info['duration'] // 60)}分钟\n" \
                   f"视频标签：{self.video_info['tname']}\n"
         link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
         poster_url = self.video_info['pic']
@@ -518,14 +554,17 @@ class DownloadFunc:
         """
         self.url = url
         self.path = path
+        self.HEADERS = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.bilibili.com"}
 
-    @tenacity.retry(stop=tenacity.stop_after_attempt(3), wait=tenacity.wait_fixed(10),
+    @tenacity.retry(stop=tenacity.stop_after_attempt(6), wait=tenacity.wait_fixed(50),
                     retry=tenacity.retry_if_result(lambda result: result is False))
-    async def download_from_url(self):
-        """使用异步下载"""
+    async def download_cover(self):
+        """
+        下载封面用，我不知道怎么回事但是使用下面那个方法下载的封面全是0kb的，就先保留这个
+        """
         try:
             _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
-            async with httpx.AsyncClient(headers=HEADERS) as client:
+            async with httpx.AsyncClient(headers=self.HEADERS) as client:
                 async with client.stream("GET", self.url) as response:
                     with open(self.path, "wb") as f:
                         async for data in response.aiter_bytes():
@@ -539,16 +578,60 @@ class DownloadFunc:
             _LOGGER.info(f"下载完成")
             return True
 
+    @tenacity.retry(stop=tenacity.stop_after_attempt(6), wait=tenacity.wait_fixed(50),
+                    retry=tenacity.retry_if_result(lambda result: result is False))
+    async def download_with_resume(self):
+        """这个是我瞎写的包含断点续传功能的下载方法"""
+        try:
+            async with httpx.AsyncClient() as client:
+                print(f"开始下载url：{self.url}，保存路径：{self.path}")
+                # 获取文件大小
+                response = await client.head(self.url, headers=self.HEADERS)
+                file_size = int(response.headers["content-length"])
+
+                # 如果文件已存在，尝试获取已下载的文件大小
+                try:
+                    with open(self.path, "rb") as file:
+                        downloaded_size = len(file.read())
+                except FileNotFoundError:
+                    downloaded_size = 0
+
+                print(f"文件大小：{file_size}，已下载：{downloaded_size}")
+
+                # 如果已下载的文件大小小于文件总大小，则进行断点续传
+                if downloaded_size < file_size:
+                    # 指定range请求头
+                    self.HEADERS["range"] = f"bytes={file_size - downloaded_size}"
+                    print(self.HEADERS)
+                    print(f"开始断点续传，已下载：{downloaded_size}，剩余：{file_size - downloaded_size}")
+                    response = await client.get(self.url, headers=self.HEADERS)
+
+                    # 将响应内容写入文件
+                    with open(self.path, "ab") as file:
+                        file.write(response.content)
+
+            return True
+        except Exception as e:
+            _LOGGER.error(f"下载失败 开始从失败处重试")
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(tracebacklog)
+            return False
+
+
+async def run_pages_video(video_id, if_get_character, emby_persons_path, media_path):
+    await ProcessPagesVideo(video_id, if_get_character, emby_persons_path, media_path).process()
+
 
 if __name__ == '__main__':
     start = time.time()
-    list = ['BV1wT4y1k7Pw']
+    list = ['BV1j84y1i7Zy']
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    tasks = [BilibiliVideoProcess(i, emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
-                                  if_get_character=True,
-                                  media_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby").process()
+    tasks = [BilibiliOneVideoProcess(i, emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
+                                     if_get_character=True,
+                                     media_path=r"E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby\123").process()
              for i in list]
     loop.run_until_complete(asyncio.wait(tasks))
     end = time.time()
     print('elapsed time = ' + str(end - start))
+    # asyncio.run(ListenUploadVideo().listen_new())

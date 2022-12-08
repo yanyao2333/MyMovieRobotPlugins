@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+"""改造bilibili_api的登录模块，使其能够在微信推送中显示二维码"""
 import json
 import time
 import uuid

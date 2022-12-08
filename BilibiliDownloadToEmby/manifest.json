@@ -1,8 +1,8 @@
 {
-  "name": "my-app",
-  "title": "My App",
+  "name": "bilibili_download_scraper",
+  "title": "bilibili下载刮削",
   "author": "yanyao",
-  "description": "My App",
+  "description": "bilibili视频下载刮削，同时附带追更功能（本插件仅供yanyao测试movie-robot性能和学习技术使用，下载后请在24h内删除，谢谢合作）",
   "version": "0.1",
   "requirements": [],
   "configField": []

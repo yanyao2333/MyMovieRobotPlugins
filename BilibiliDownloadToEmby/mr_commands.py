@@ -3,7 +3,7 @@ import re
 from mbot.core.params import ArgSchema, ArgType
 from mbot.core.plugins import plugin, PluginCommandContext, PluginCommandResponse
 
-from .process_bilibili import *
+from .main import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,10 +31,10 @@ def download(ctx: PluginCommandContext,
     if type(video_id) == list:
         for i in video_id:
             i = find_bv(i) if find_bv(i) else i
-            tasks.append(BilibiliVideoProcess(i, if_get_character=if_people_path, emby_persons_path=people_path,
-                                              media_path=media_path).process())
+            tasks.append(BilibiliOneVideoProcess(i, if_get_character=if_people_path, emby_persons_path=people_path,
+                                                 media_path=media_path).process())
     else:
-        tasks.append(BilibiliVideoProcess(video_id, if_get_character=if_people_path, emby_persons_path=people_path,
-                                          media_path=media_path).process())
+        tasks.append(BilibiliOneVideoProcess(video_id, if_get_character=if_people_path, emby_persons_path=people_path,
+                                             media_path=media_path).process())
     loop.run_until_complete(asyncio.wait(tasks))
     return PluginCommandResponse(True, '已下载完成，请刷新emby媒体库')
