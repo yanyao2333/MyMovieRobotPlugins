@@ -3,7 +3,7 @@ import re
 from mbot.core.params import ArgSchema, ArgType
 from mbot.core.plugins import plugin, PluginCommandContext, PluginCommandResponse
 
-from .main import *
+from .bilibili_main import *
 
 _LOGGER = logging.getLogger(__name__)
 

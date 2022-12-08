@@ -2,7 +2,7 @@
 主文件 包含工具类和主类
 """
 import asyncio
-import datetime
+import json
 import logging
 import os
 import shutil
@@ -14,7 +14,7 @@ import ffmpeg
 import httpx
 import pypinyin
 import tenacity
-from bilibili_api import video, Credential, exceptions, user
+from bilibili_api import video, user
 from lxml import etree
 # from mbot.openapi import mbot_api
 
@@ -22,11 +22,9 @@ import loguru
 from moviebotapi import MovieBotServer
 import datetime
 from moviebotapi.core.session import AccessKeySession
-from constant import SERVER_URL, ACCESS_KEY, SESSDATA, BILI_JCT, BUVID3
+from constant import SERVER_URL, ACCESS_KEY
 from mr_api import *
-from process_pages_video import *
-
-# from bilibili_login import LoginBilibili
+import process_pages_video
 
 # _LOGGER = logging.getLogger(__name__)
 _LOGGER = loguru.logger
@@ -34,9 +32,7 @@ server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 local_path = os.path.split(os.path.realpath(__file__))[0]
 # server = mbot_api
 credential = None
-
-
-# init_time = time.
+up_data = {}
 
 
 class BilibiliOneVideoProcess:
@@ -351,7 +347,8 @@ class BilibiliOneVideoProcess:
                 f.write("该文件用于记录下载失败的视频id，以便下次重试，请勿删除\n")
         if len(await video.Video(bvid=self.video_id, credential=self.credential).get_pages()) != 1:
             _LOGGER.warning(f"视频{self.video_id}不是单P视频，开始进行特殊处理（这部分代码没咋测试，报错请call我，谢谢）")
-            await run_pages_video(self.video_id, self.if_get_character, self.emby_persons_path, self.media_path)
+            await process_pages_video.ProcessPagesVideo(self.video_id, self.if_get_character, self.emby_persons_path,
+                                                        self.media_path).process()
             return
         try:
             await self._get_video_info()
@@ -468,7 +465,7 @@ class Utils:
 async def retry_video():
     """
     重试下载之前失败的视频 被定时任务调用 每次最多重试2个 防止被封ip
-    这功能没测试过，鬼知道能不能用，报错了自认倒霉
+    这功能没测试过，鬼知道能不能用，但是既然我加上了，就把他也当成个feature吧~
     """
     error_video_list = Utils.get_error_video_list()
     loop = asyncio.new_event_loop()
@@ -501,12 +498,78 @@ class ListenUploadVideo:
         self.media_path = media_path
         self.emby_persons_path = emby_persons_path
 
-    async def listen_new(self):
-        ll = await user.User(credential=credential, uid=168598).get_videos()
-        v = video.Video(bvid="BV1S14y1J7Hv", credential=credential)
-        ll = await v.get_pages()
-        pl = await v.get_info()
-        print(ll)
+    async def listen_no_pages_video_new(self):
+        """
+        官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
+        so bilibili fuck you!
+        """
+        if not os.path.exists(f"{local_path}/listen_up.json"):
+            await self.save_data(f"{local_path}/listen_up.json")
+        await self.load_data(f"{local_path}/listen_up.json")
+        all_video = await user.User(credential=credential, uid=self.uid).get_videos()
+        last_video = all_video['list']['vlist'][0]
+        if await self.query_data(self.uid) is not None and self.compare_time(last_video['created'],
+                                                                             await self.query_data(self.uid)):
+            video_info = await video.Video(bvid=last_video['bvid']).get_info()
+            if len(await video.Video(bvid=last_video['bvid']).get_pages()) > 1:
+                _LOGGER.info(f"用户{self.uid}发布了分p视频，忽略")
+                await self.modify_data(self.uid, last_video['created'], 'update')
+                Notify(video_info).send_pages_video_request(self.uid)
+                await self.save_data(f"{local_path}/listen_up.json")
+                return
+            else:
+                _LOGGER.info(f"用户 {self.uid} 发布了新视频：{video_info['title']}  开始下载")
+                await self.modify_data(self.uid, last_video['created'], 'update')
+                await self.save_data(f"{local_path}/listen_up.json")
+                await BilibiliOneVideoProcess(last_video['bvid'], if_get_character=self.if_get_character,
+                                              media_path=self.media_path,
+                                              emby_persons_path=self.emby_persons_path).process()
+                return
+        elif await self.query_data(self.uid) is None:
+            await self.modify_data(self.uid, last_video['created'], 'add')
+            await self.save_data(f"{local_path}/listen_up.json")
+            return
+        elif not self.compare_time(last_video['created'], await self.query_data(self.uid)):
+            await self.save_data(f"{local_path}/listen_up.json")
+            return
+
+    def compare_time(self, v_timestamp, last_timestamp):
+        """比较时间"""
+        time1 = datetime.datetime.fromtimestamp(v_timestamp)
+        # time2 = datetime.datetime.fromtimestamp(last_timestamp)
+        time2 = datetime.datetime.fromtimestamp(1670456197)
+        if time1 > time2:
+            return True
+        else:
+            return False
+
+    async def modify_data(self, uid, time, mode):
+        if mode == "add":
+            up_data[uid] = time
+        elif mode == "update":
+            up_data[uid] = time
+        elif mode == "delete":
+            up_data.pop(uid, None)
+
+    async def query_data(self, uid):
+        if uid in up_data:
+            return up_data[uid]
+        else:
+            return None
+
+    async def save_data(self, file_name):
+        with open(file_name, "w") as f:
+            # 将 data 字典序列化为 JSON 字符串
+            content = json.dumps(up_data)
+            # 将 JSON 字符串写入文件
+            f.write(content)
+
+    async def load_data(self, file_name):
+        with open(file_name, "r") as f:
+            # 读取文件内容
+            content = f.read()
+            # 将 JSON 字符串反序列化为 data 字典
+            up_data.update(json.loads(content))
 
 
 class Notify:
@@ -522,7 +585,7 @@ class Notify:
         pubtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.video_info["pubdate"]))
         desc = self.video_info['desc'][:100] + '...' if len(self.video_info['desc']) > 50 else self.video_info['desc']
         message = f"视频标题：{self.video_info['title']}\n" \
-                  f"视频简介：{desc}\n" \
+                  f"视频简介：{desc}\n\n" \
                   f"视频发布时间：{pubtime}\n" \
                   f"视频时长：{str(self.video_info['duration'] // 60)}分钟\n" \
                   f"视频标签：{self.video_info['tname']}\n"
@@ -542,6 +605,12 @@ class Notify:
         """发送所有通知方式"""
         self.send_message_by_templ()
         self.send_sys_message()
+
+    def send_pages_video_request(self, uid):
+        """发送分p视频通知"""
+        _LOGGER.info("开始发送分p视频通知")
+        server.notify.send_system_message(title="bilibili追更提醒", to_uid=1,
+                                          message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载")
 
 
 class DownloadFunc:
@@ -616,10 +685,6 @@ class DownloadFunc:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(tracebacklog)
             return False
-
-
-async def run_pages_video(video_id, if_get_character, emby_persons_path, media_path):
-    await ProcessPagesVideo(video_id, if_get_character, emby_persons_path, media_path).process()
 
 
 if __name__ == '__main__':

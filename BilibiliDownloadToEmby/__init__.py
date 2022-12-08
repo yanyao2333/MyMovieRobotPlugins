@@ -1,4 +1,5 @@
 import logging
+import os
 
 _LOGGER = logging.getLogger(__name__)
 dependent_moudules = {'bilibili_api': 'bilibili-api-python', 'zxing': 'zxing', 'apscheduler': 'apscheduler',
