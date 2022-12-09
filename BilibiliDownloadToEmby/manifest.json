@@ -35,14 +35,14 @@
     },
     {
       "fieldName": "buvid3",
-      "fieldType": "buvid3",
+      "fieldType": "String",
       "label": "buvid3",
       "helperText": "buvid3",
       "defaultValue": ""
     },
     {
       "fieldName": "dedeuserid",
-      "fieldType": "dedeuserid",
+      "fieldType": "String",
       "label": "dedeuserid",
       "helperText": "dedeuserid",
       "defaultValue": ""

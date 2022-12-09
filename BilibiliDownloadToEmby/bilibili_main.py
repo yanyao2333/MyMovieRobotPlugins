@@ -18,7 +18,7 @@ import ffmpeg
 import httpx
 import pypinyin
 import tenacity
-from bilibili_api import video, user
+from bilibili_api import video, user, sync, exceptions, ass
 from lxml import etree
 from moviebotapi import MovieBotServer
 from mbot.openapi import mbot_api
@@ -83,7 +83,7 @@ class BilibiliOneVideoProcess:
             url = await v.get_download_url(0)
             video_url = url["dash"]["video"][0]['baseUrl']
             audio_url = url["dash"]["audio"][0]['baseUrl']
-            res = await DownloadFunc(video_url, path).download_with_resume()
+            res, v_size = await DownloadFunc(video_url, path).download_with_resume()
             if res:
                 _LOGGER.info(f"{self.title} 视频下载完成")
             else:
@@ -91,10 +91,15 @@ class BilibiliOneVideoProcess:
                 Utils.delete_video_folder(self.video_info)
                 return None
             path = f'{local_path}/{self.video_info["title"]} ({raw_year})/audio_temp.m4s'
-            res = await DownloadFunc(audio_url, path).download_with_resume()
+            res, a_size = await DownloadFunc(audio_url, path).download_with_resume()
             if res:
                 _LOGGER.info(f"{self.title} 音频下载完成")
             else:
+                Utils.write_error_video(self.video_info)
+                Utils.delete_video_folder(self.video_info)
+                return None
+            if v_size == 0 or a_size == 0:
+                _LOGGER.error(f"{self.title} 视频或音频大小为0kb，可能是资源失效，不会再次重试")
                 Utils.write_error_video(self.video_info)
                 Utils.delete_video_folder(self.video_info)
                 return None
@@ -111,7 +116,7 @@ class BilibiliOneVideoProcess:
             Utils.write_error_video(self.video_info)
             Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
-            _LOGGER.error(f"{tracebacklog}")
+            _LOGGER.error(f"报错原因：{tracebacklog}")
 
     async def _download_video_cover(self, *args, **kwargs):
         """下载视频封面"""
@@ -152,7 +157,7 @@ class BilibiliOneVideoProcess:
             genre = etree.SubElement(root, "genre")
             genre.text = video_info["tname"]
             runtime = etree.SubElement(root, "runtime")
-            runtime.text = str(video_info["duration"] // 60)
+            runtime.text = str(self.video_info['duration'] // 60) if self.video_info['duration'] // 60 > 0 else "0"
             try:
                 for character in video_info["staff"]:
                     actor = etree.SubElement(root, "actor")
@@ -260,7 +265,7 @@ class BilibiliOneVideoProcess:
             Utils.write_error_video(self.video_info)
             Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
-            _LOGGER.error(f"{tracebacklog}")
+            _LOGGER.error(f"报错原因：{tracebacklog}")
 
     async def _move_character_folder(self, *args, **kwargs):
         """移动up主信息到emby演员文件夹"""
@@ -342,6 +347,27 @@ class BilibiliOneVideoProcess:
             _LOGGER.info("视频文件夹移动完成")
         except Exception as e:
             _LOGGER.error(f"视频 {self.title} 文件夹移动失败，已记录视频id，稍后重试")
+            Utils.write_error_video(self.video_info)
+            Utils.delete_video_folder(self.video_info)
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"报错原因：{tracebacklog}")
+
+    async def _downlod_ass_danmakus(self, *args, **kwargs):
+        """下载弹幕"""
+        try:
+            if Utils.read_error_video(self.video_info):
+                return
+            _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
+            raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
+            path = f"{local_path}/{self.video_info['title']} ({raw_year})/{self.video_info['title']} ({raw_year}).danmakus.ass"
+            # 这是我个人比较舒服的弹幕样式，可以自行修改
+            await ass.make_ass_file_danmakus_protobuf(video.Video(self.video_id), 0, path, fly_time=13, alpha=0.75,
+                                                      font_size=20)
+            _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
+        except exceptions.DanmakuClosedException:
+            _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
+        except Exception:
+            _LOGGER.error(f"视频 {self.title} 弹幕下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
             Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
@@ -607,9 +633,10 @@ class Notify:
         title = f"✔️{self.video_info['title']} ({raw_year}) 下载完成"
         pubtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.video_info["pubdate"]))
         desc = self.video_info['desc']
+        duration = str(self.video_info['duration'] // 60) if self.video_info['duration'] // 60 > 0 else "0"
         message = f"视频标题：{self.video_info['title']}\n" \
                   f"发布时间：{pubtime}\n" \
-                  f"视频时长：{str(self.video_info['duration'] // 60)}分钟\n" \
+                  f"视频时长：{duration}分钟\n" \
                   f"视频标签：{self.video_info['tname']}\n" \
                   f"·····································\n" \
                   f"{desc}"
@@ -691,8 +718,7 @@ class DownloadFunc:
                         file.write(response.content)
                     with open(self.path, "rb") as file:
                         downloaded_size = len(file.read())
-                        _LOGGER.info(f"下载完成，文件大小：{downloaded_size}")
-            return True
+            return True, downloaded_size
         except Exception as e:
             _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
             tracebacklog = traceback.format_exc()
