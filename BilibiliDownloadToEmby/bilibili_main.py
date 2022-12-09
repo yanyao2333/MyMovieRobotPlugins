@@ -2,7 +2,8 @@
 主文件 包含工具类和主类
 本插件的稳定运行需要祭天一个陈睿，请确保你在使用前完成了这个前置工作 ：）
 """
-# import loguru
+import asyncio
+import loguru
 # from moviebotapi import MovieBotServer
 import datetime
 import json
@@ -19,12 +20,14 @@ import pypinyin
 import tenacity
 from bilibili_api import video, user
 from lxml import etree
+from moviebotapi import MovieBotServer
 from mbot.openapi import mbot_api
 
 # from moviebotapi.core.session import AccessKeySession
 # from constant import SERVER_URL, ACCESS_KEY
-import mr_api
-import process_pages_video
+from . import mr_api, process_pages_video
+
+# import mr_api, process_pages_video
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER = loguru.logger
@@ -99,7 +102,7 @@ class BilibiliOneVideoProcess:
             in_audio = ffmpeg.input(f'{local_path}/{self.video_info["title"]} ({raw_year})/audio_temp.m4s')
             ffmpeg.output(in_video, in_audio,
                           f'{local_path}/{self.video_info["title"]} ({raw_year})/{self.video_info["title"]} ({raw_year}).mp4',
-                          vcodec='copy', acodec='copy', loglevel="error").run(overwrite_output=True)
+                          vcodec='copy', acodec='copy').run(overwrite_output=True)
             os.remove(f"{local_path}/{self.video_info['title']} ({raw_year})/video_temp.m4s")
             os.remove(f"{local_path}/{self.video_info['title']} ({raw_year})/audio_temp.m4s")
             _LOGGER.info(f"视频音频下载完成，已混流为mp4文件，文件名： 「{self.video_info['title']} ({raw_year}).mp4」")
@@ -244,16 +247,20 @@ class BilibiliOneVideoProcess:
                 res = await DownloadFunc(character["face"], path).download_cover()
                 if res:
                     _LOGGER.info(f"up主 「{character['name']}」 头像下载完成")
+            return
         except KeyError:
             _LOGGER.info(f"开始下载up主 「{video_info['owner']['name']}」 头像")
             path = f'{local_path}/{self.video_info["title"]} ({raw_year})/character/{video_info["owner"]["name"]}/folder.jpg'
             res = await DownloadFunc(video_info["owner"]["face"], path).download_cover()
             if res:
                 _LOGGER.info(f" 「{video_info['owner']['name']}」 头像下载完成")
-        else:
+            return
+        except Exception:
             _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
             Utils.delete_video_folder(self.video_info)
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"{tracebacklog}")
 
     async def _move_character_folder(self, *args, **kwargs):
         """移动up主信息到emby演员文件夹"""
@@ -498,11 +505,11 @@ async def retry_video():
         type = False
     # media_path = Utils.get_media_path(type)
     Utils.remove_error_video({"bvid": error_video})
+    _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
     await BilibiliOneVideoProcess(error_video,
                                   emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
                                   if_get_character=True,
                                   media_path=r"E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby\123").process()
-    _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
 
 
 class ListenUploadVideo:
@@ -519,6 +526,7 @@ class ListenUploadVideo:
         官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
         so bilibili fuck you!
         """
+        _LOGGER.info(f"开始监听用户 {self.uid} 是否上传新视频")
         if not os.path.exists(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
@@ -681,6 +689,9 @@ class DownloadFunc:
                     response = await client.get(self.url, headers=self.HEADERS)
                     with open(self.path, "ab") as file:
                         file.write(response.content)
+                    with open(self.path, "rb") as file:
+                        downloaded_size = len(file.read())
+                        _LOGGER.info(f"下载完成，文件大小：{downloaded_size}")
             return True
         except Exception as e:
             _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
@@ -688,16 +699,17 @@ class DownloadFunc:
             _LOGGER.error(tracebacklog)
             return False
 
-# if __name__ == '__main__':
-#     start = time.time()
-#     list = ['BV1j84y1i7Zy']
-#     loop = asyncio.new_event_loop()
-#     asyncio.set_event_loop(loop)
-#     tasks = [BilibiliOneVideoProcess(i, emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
-#                                      if_get_character=True,
-#                                      media_path=r"E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby\123").process()
-#              for i in list]
-#     loop.run_until_complete(asyncio.wait(tasks))
-#     end = time.time()
-#     print('elapsed time = ' + str(end - start))
-#     asyncio.run(ListenUploadVideo().listen_new())
+
+if __name__ == '__main__':
+    start = time.time()
+    list = ['BV1A44y1M7jr']
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    tasks = [BilibiliOneVideoProcess(i, emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
+                                     if_get_character=True,
+                                     media_path=r"E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby\123").process()
+             for i in list]
+    loop.run_until_complete(asyncio.wait(tasks))
+    end = time.time()
+    print('elapsed time = ' + str(end - start))
+    # asyncio.run(ListenUploadVideo().listen_new())

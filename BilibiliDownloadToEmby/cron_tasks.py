@@ -4,7 +4,7 @@ import logging
 
 from mbot.core.plugins import plugin
 
-import bilibili_main
+from . import bilibili_main
 
 follow_uid_list = []
 if_people_path, people_path = bilibili_main.Utils.if_get_character()

@@ -21,3 +21,4 @@ install()
 
 from .cron_tasks import *
 from .mr_commands import *
+from .events import *
