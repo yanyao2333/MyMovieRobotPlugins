@@ -2,8 +2,12 @@ import logging
 import os
 
 _LOGGER = logging.getLogger(__name__)
-dependent_modules = {'bilibili_api': 'bilibili-api-python', 'zxing': 'zxing', 'apscheduler': 'apscheduler',
-                     'PIL': 'pillow'}
+dependent_modules = {
+    "bilibili_api": "bilibili-api-python",
+    "zxing": "zxing",
+    "apscheduler": "apscheduler",
+    "PIL": "pillow",
+}
 source = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 

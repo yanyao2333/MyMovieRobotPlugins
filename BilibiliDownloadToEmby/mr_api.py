@@ -6,7 +6,7 @@ class ScraperApi:
         self._session: Session = session
 
     def config(self):
-        return self._session.get('setting.get_scraper')
+        return self._session.get("setting.get_scraper")
 
 
 class MediaPath:
@@ -14,4 +14,4 @@ class MediaPath:
         self._session: Session = session
 
     def config(self):
-        return self._session.get('config.get_media_path')
+        return self._session.get("config.get_media_path")

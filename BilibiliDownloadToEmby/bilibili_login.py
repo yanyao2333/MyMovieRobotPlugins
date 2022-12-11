@@ -8,13 +8,13 @@ import PIL
 import httpx
 import requests
 import tenacity
-from bilibili_api import Credential, exceptions
+from bilibili_api import Credential, exceptions, video, sync
 from bilibili_api.login import make_qrcode
 from bilibili_api.utils.utils import get_api
 from moviebotapi import MovieBotServer
 from moviebotapi.core.session import AccessKeySession
 
-from .constant import SERVER_URL, ACCESS_KEY
+from constant import SERVER_URL, ACCESS_KEY
 
 server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 API = get_api("login")
@@ -29,7 +29,7 @@ def pad_image(image, target_size):
     nw = int(iw * scale)
     nh = int(ih * scale)
     image = image.resize((nw, nh), PIL.Image.Resampling.BICUBIC)
-    new_image = PIL.Image.new('RGB', target_size, (255, 255, 255))
+    new_image = PIL.Image.new("RGB", target_size, (255, 255, 255))
     new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
     return new_image
 
@@ -77,6 +77,7 @@ def events():
                 bili_jct = cookie[9:]
             if cookie[:11].upper() == "DEDEUSERID=":
                 dede = cookie[11:]
+        print(f"SESSDATA={sessdata};bili_jct={bili_jct};DEDEUSERID={dede}")
         c = Credential(sessdata, bili_jct, dedeuserid=dede)
         credential = c
         return credential
@@ -96,10 +97,12 @@ def update_qrcode():
 class LoginBilibili:
     """登录类"""
 
-    @tenacity.retry(wait=tenacity.wait_fixed(60), retry=tenacity.retry_if_exception_type(Exception))
+    @tenacity.retry(
+        wait=tenacity.wait_fixed(1), retry=tenacity.retry_if_exception_type(Exception)
+    )
     def by_scan_qrcode(self):
         """扫码登录 如果没登录就无限重发"""
-        token = ''
+        token = "1670337991933e58927c9c14840038764e8858db545e4"
         img = update_qrcode()
         image = PIL.Image.open(img)
         image = pad_image(image, (300, 100))
@@ -111,7 +114,6 @@ class LoginBilibili:
             if credential:
                 return credential
             else:
-                time.sleep(5)
                 if time.time() - start > 120:
                     raise exceptions.LoginError("登录超时 60s后再次发送二维码")
 
