@@ -437,7 +437,7 @@ class BilibiliProcess:
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             path = f"{self.video_path}/{self.video_info['title']} ({raw_year}).danmakus.ass"
-            # 这是我个人比较舒服的弹幕样式，可以自行修改
+            # 这是我个人比较舒服的弹幕样式，可以自行修改(参照：https://nemo2011.github.io/bilibili-api/#/modules/ass?id=async-def-make_ass_file_danmakus_xml 这个链接上的值修改)
             await ass.make_ass_file_danmakus_protobuf(
                 video.Video(self.video_id),
                 0,
@@ -445,6 +445,7 @@ class BilibiliProcess:
                 fly_time=13,
                 alpha=0.75,
                 font_size=20,
+                static_time=5
             )
             _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
         except exceptions.DanmakuClosedException:
@@ -639,7 +640,9 @@ async def retry_video():
     _LOGGER.info(f"开始重试下载失败的视频 {bv}")
     if_people_path, people_path = Utils.if_get_character()
     v = video.Video(bvid=bv, credential=credential)
-    if len(await v.get_pages()) != 0:
+    _LOGGER.info(f"视频：{bv}，pages：{len(await v.get_pages())}")
+    if len(await v.get_pages()) != 1:
+        _LOGGER.info("进入多p视频单集重试模式")
         media_path = Utils.get_media_path(True)
         process = process_pages_video.ProcessPagesVideo(
             media_path=media_path,
@@ -649,6 +652,7 @@ async def retry_video():
         )
         await process.get_video_info()
         await process.retry_one_page(page)
+        return
     # if len(await v.get_pages()) > 1:
     #     type = True
     # else:

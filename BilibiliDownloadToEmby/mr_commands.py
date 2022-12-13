@@ -100,6 +100,7 @@ def download(ctx: PluginCommandContext):
         login = bilibili_login.LoginBilibili()
         t1 = threading.Thread(target=login.by_scan_qrcode, name="bilibili_login")
         t1.start()
+        _LOGGER.info("开始运行登录线程")
         return PluginCommandResponse(True, "登录线程启动成功，请扫码登录")
     except:
         return PluginCommandResponse(False, "出了点小问题，请检查日志")

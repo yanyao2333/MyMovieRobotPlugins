@@ -112,14 +112,14 @@ class ProcessPagesVideo:
             )
         except Exception:
             _LOGGER.error(f"视频 {self.video_info['title']} 下载失败，已记录视频id，稍后重试")
-            bilibili_main.Utils.write_error_video(self.video_info, page)
+            bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
             )
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def download_video_cover(self):
+    async def download_video_cover(self, page):
         """下载视频封面"""
         if bilibili_main.Utils.read_error_video(self.video_info):
             return
@@ -131,7 +131,7 @@ class ProcessPagesVideo:
         if res:
             _LOGGER.info("视频封面下载完成")
         else:
-            bilibili_main.Utils.write_error_video(self.video_info)
+            bilibili_main.Utils.write_error_video(self.video_info, page=page + 1)
             await bilibili_main.Utils.delete_video_folder(self.video_info)
             return None
 
@@ -228,7 +228,7 @@ class ProcessPagesVideo:
             _LOGGER.info("视频截图完成")
         except Exception as e:
             _LOGGER.error(f"视频截图失败，已记录视频id，稍后重试")
-            bilibili_main.Utils.write_error_video(self.video_info, page)
+            bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
             )
@@ -267,7 +267,7 @@ class ProcessPagesVideo:
                     return
                 file_list = os.listdir(f"{self.video_path}/Season 1")
                 for file in file_list:
-                    src = os.path.join(self.video_path, file)
+                    src = os.path.join(f"{self.video_path}/Season 1", file)
                     dst = os.path.join(
                         f"{media_path}/bilibili/{self.video_info['title']} ({self.raw_year})/Season 1",
                         file,
@@ -276,11 +276,11 @@ class ProcessPagesVideo:
                 shutil.rmtree(
                     f"{bilibili_main.local_path}/{self.video_info['title']} ({self.raw_year})"
                 )
-                _LOGGER.info(f"第{str(page + 1)}P重试完成，已移动至媒体目录")
+                _LOGGER.info(f"第{str(page)}P重试完成，已移动至媒体目录")
             else:
                 _LOGGER.error(f"视频文件夹不存在，稍后重试")
         except Exception as e:
-            _LOGGER.error(f"第{str(page + 1)}P重试失败，已记录视频id，稍后重试")
+            _LOGGER.error(f"第{str(page)}P重试失败，已记录视频id，稍后重试")
             bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
@@ -342,8 +342,8 @@ class ProcessPagesVideo:
             await self.gen_video_nfo(page, 2)
             await self.get_screenshot(page)
             await self.downlod_ass_danmakus(page)
+            await self.download_video_cover(page)
         await self.gen_video_nfo(0, 1)
-        await self.download_video_cover()
         if self.if_get_character:
             await bProcess.gen_character_nfo()
             await bProcess.download_character_folder()

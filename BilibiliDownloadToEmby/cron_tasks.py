@@ -55,7 +55,7 @@ def check_cookie_is_valid():
     _LOGGER.info("开始运行定时任务：检查cookie是否过期")
     cookies = global_value.get_value("credential")
     if not global_value.get_value("is_cookie_valid"):
-        _LOGGER.info("cookie还没设置，请重新登录")
+        _LOGGER.info("cookie在有效期内，跳过")
         return
     elif sync(
             Credential(

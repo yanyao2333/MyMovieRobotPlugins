@@ -128,6 +128,7 @@ class LoginBilibili:
     )
     def by_scan_qrcode(self):
         """扫码登录 如果没登录就无限重发"""
+        _LOGGER.info("收到登录请求")
         img = update_qrcode()
         image = PIL.Image.open(img)
         image = pad_image(image, (1068, 455))
