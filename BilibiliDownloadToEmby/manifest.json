@@ -2,7 +2,7 @@
   "name": "bilibili_download_scraper",
   "title": "bilibili下载刮削",
   "author": "yanyao",
-  "description": "bilibili视频下载刮削，同时附带追更功能（本插件仅供yanyao测试movie-robot和学习技术使用，下载后请在24h内删除，谢谢合作）",
+  "description": "bilibili视频下载刮削，同时附带追更功能（本插件仅供学习技术使用，下载后请在24h内删除）",
   "version": "0.1",
   "requirements": [],
   "configField": [
@@ -12,40 +12,8 @@
       "label": "追更up列表",
       "helperText": "填写需要追更的up的uid，多个uid用英文逗号隔开，如：123456,654321",
       "defaultValue": ""
-    },
-    {
-      "fieldName": "if_use_qrcode_login",
-      "fieldType": "Boolean",
-      "label": "是否使用扫码登录b站（推荐）二维码会发送至你在mr设置的所有推送渠道（如果不选这种方式就需要填上下面的三个cookie）",
-      "defaultValue": true
-    },
-    {
-      "fieldName": "sessdata",
-      "fieldType": "String",
-      "label": "sessdata",
-      "helperText": "sessdata 获取方式：https://nemo2011.github.io/bilibili-api/#/get-credential",
-      "defaultValue": ""
-    },
-    {
-      "fieldName": "bili_jct",
-      "fieldType": "String",
-      "label": "bili_jct",
-      "helperText": "bili_jct",
-      "defaultValue": ""
-    },
-    {
-      "fieldName": "buvid3",
-      "fieldType": "String",
-      "label": "buvid3",
-      "helperText": "buvid3",
-      "defaultValue": ""
-    },
-    {
-      "fieldName": "dedeuserid",
-      "fieldType": "String",
-      "label": "dedeuserid",
-      "helperText": "dedeuserid",
-      "defaultValue": ""
     }
-  ]
+  ],
+  "logoUrl": "/plugins/BilibiliDownloadToEmby/logo.jpg",
+  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/BilibiliDownloadToEmby"
 }

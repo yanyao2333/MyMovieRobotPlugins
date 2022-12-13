@@ -14,6 +14,7 @@ import shutil
 import sys
 import time
 import traceback
+import math
 
 import ffmpeg
 import httpx
@@ -23,26 +24,33 @@ from bilibili_api import video, user, sync, exceptions, ass
 from lxml import etree
 from moviebotapi import MovieBotServer
 
-# from mbot.openapi import mbot_api
+from mbot.openapi import mbot_api
 
 from moviebotapi.core.session import AccessKeySession
-from constant import SERVER_URL, ACCESS_KEY
+# from .constant import SERVER_URL, ACCESS_KEY
+from . import global_value
+from . import mr_api, process_pages_video
 
-# from . import mr_api, process_pages_video
-
-import mr_api, process_pages_video
-
-# _LOGGER = logging.getLogger(__name__)
-_LOGGER = loguru.logger
-sys.stderr = open("ffmpeg_error.log", "w")
-server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
+_LOGGER = logging.getLogger(__name__)
+# _LOGGER = loguru.logger
+# server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 local_path = os.path.split(os.path.realpath(__file__))[0]
-# server = mbot_api
-credential = None
+if not os.path.exists(f"{local_path}/logs"):
+    os.mkdir(f"{local_path}/logs")
+sys.stderr = open(f"{local_path}/logs/main_stderr.log", "w")
+server = mbot_api
+credential = global_value.get_value("credential")
+_LOGGER.info(f"cookie：{credential}")
 up_data = {}
 
 
-class BilibiliOneVideoProcess:
+def get_config():
+    global credential
+    credential = global_value.get_value("credential")
+    _LOGGER.info(f"重载cookie配置：{credential}")
+
+
+class BilibiliProcess:
     """bilibili视频下载入库刮削实现类 调用process即可完成单个bv号的下载入库刮削"""
 
     def __init__(
@@ -64,7 +72,7 @@ class BilibiliOneVideoProcess:
         self.if_get_character = if_get_character
         self.emby_persons_path = emby_persons_path
         self.video_id = video_id
-        self.credential = None
+        self.credential = credential
         self.video_info = None
         _LOGGER.info(
             f"收到视频处理请求：bvid： {video_id}，媒体路径： {media_path}， 是否获取角色信息： {if_get_character}， emby人物路径： {emby_persons_path}"
@@ -82,7 +90,6 @@ class BilibiliOneVideoProcess:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确！")
             _LOGGER.error(tracebacklog)
-            return None
 
     async def download_video(self):
         """下载视频"""
@@ -101,7 +108,7 @@ class BilibiliOneVideoProcess:
                 _LOGGER.info(f"{self.title} 视频下载完成")
             else:
                 Utils.write_error_video(self.video_info)
-                Utils.delete_video_folder(self.video_info)
+                await Utils.delete_video_folder(self.video_info)
                 return None
             path = f"{self.video_path}/audio_temp.m4s"
             res, a_size = await DownloadFunc(audio_url, path).download_with_resume()
@@ -109,12 +116,12 @@ class BilibiliOneVideoProcess:
                 _LOGGER.info(f"{self.title} 音频下载完成")
             else:
                 Utils.write_error_video(self.video_info)
-                Utils.delete_video_folder(self.video_info)
+                await Utils.delete_video_folder(self.video_info)
                 return None
             if v_size == 0 or a_size == 0:
                 _LOGGER.error(f"{self.title} 视频或音频大小为0kb，可能是资源失效，不会再次重试")
                 Utils.write_error_video(self.video_info)
-                Utils.delete_video_folder(self.video_info)
+                await Utils.delete_video_folder(self.video_info)
                 return None
             in_video = ffmpeg.input(f"{self.video_path}/video_temp.m4s")
             in_audio = ffmpeg.input(f"{self.video_path}/audio_temp.m4s")
@@ -133,7 +140,7 @@ class BilibiliOneVideoProcess:
         except Exception as e:
             _LOGGER.error(f"{self.title} 下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -149,8 +156,7 @@ class BilibiliOneVideoProcess:
             _LOGGER.info(f"{self.title} 封面下载完成")
         else:
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
-            return None
+            await Utils.delete_video_folder(self.video_info)
 
     async def gen_video_nfo(self):
         """生成视频nfo文件"""
@@ -181,7 +187,7 @@ class BilibiliOneVideoProcess:
             runtime.text = (
                 str(self.video_info["duration"] // 60)
                 if self.video_info["duration"] // 60 > 0
-                else "0"
+                else "1"
             )
             try:
                 for character in video_info["staff"]:
@@ -207,7 +213,7 @@ class BilibiliOneVideoProcess:
         except Exception as e:
             _LOGGER.error(f"视频 {self.title} nfo文件生成失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -276,7 +282,7 @@ class BilibiliOneVideoProcess:
         except Exception as e:
             _LOGGER.error(f"{self.title} 的up主nfo信息生成失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -307,7 +313,7 @@ class BilibiliOneVideoProcess:
         except Exception:
             _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -383,7 +389,7 @@ class BilibiliOneVideoProcess:
         except Exception as e:
             _LOGGER.error(f"{self.title} up主头像移动失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -419,7 +425,7 @@ class BilibiliOneVideoProcess:
         except Exception as e:
             _LOGGER.error(f"视频 {self.title} 文件夹移动失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -446,7 +452,7 @@ class BilibiliOneVideoProcess:
         except Exception:
             _LOGGER.error(f"视频 {self.title} 弹幕下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
-            Utils.delete_video_folder(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
@@ -455,6 +461,9 @@ class BilibiliOneVideoProcess:
         if not os.path.exists(f"{local_path}/error_video.txt"):
             with open(f"{local_path}/error_video.txt", "w") as f:
                 pass
+        if not global_value.get_value("cookie_is_valid"):
+            _LOGGER.warning("还没登录bilibili账号，无法下载高分辨率视频，终止下载等待登录")
+            return False
         if (
                 len(
                     await video.Video(
@@ -470,16 +479,17 @@ class BilibiliOneVideoProcess:
                 self.emby_persons_path,
                 self.media_path,
             ).process()
-            return
+            return True
         try:
             await self.get_video_info()
         except Exception:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确")
             _LOGGER.error(tracebacklog)
-            return
+            return True
         if Utils.read_error_video(self.video_info):
-            return
+            _LOGGER.info("该视频在失败重试列表，不再下载，等待自动重试")
+            return True
         await self.download_video()
         await self.download_video_cover()
         await self.gen_video_nfo()
@@ -490,9 +500,10 @@ class BilibiliOneVideoProcess:
             await self.move_character_folder()
         await self.move_video_folder()
         if Utils.read_error_video(self.video_info):
-            return
+            return True
         _LOGGER.info(f"视频 {self.title} 下载刮削完成，请刷新emby媒体库")
         Notify(self.video_info).send_all_way()
+        return True
 
 
 class Utils:
@@ -579,7 +590,7 @@ class Utils:
 
     @staticmethod
     async def delete_video_folder(video_info, target_str=None):
-        """删除视频目录"""
+        """删除视频目录 逻辑：如果提供target_str，删除包含target_str关键字的文件，如果没有提供target_str，则删除视频目录下的所有文件"""
         try:
             raw_year = time.strftime("%Y", time.localtime(video_info["pubdate"]))
             path = f"{local_path}/{video_info['title']} ({raw_year})"
@@ -615,11 +626,11 @@ async def retry_video():
     """
     if not os.path.exists(f"{local_path}/error_video.txt"):
         with open(f"{local_path}/error_video.txt", "w") as f:
-            f.write("")
+            pass
     error_video_list = Utils.get_error_video_list()
     error_video = error_video_list[0] if error_video_list else None
-    bv = error_video.split("P")[0] if error_video else None
-    page = error_video.split("P")[1] if error_video else None
+    bv = error_video.split(" ")[0] if error_video else None
+    page = error_video.split(" ")[1][1:] if error_video else None
     if error_video is None:
         return
     elif len(bv) != 12 and bv[:2] != "BV":
@@ -627,16 +638,26 @@ async def retry_video():
         return
     _LOGGER.info(f"开始重试下载失败的视频 {bv}")
     if_people_path, people_path = Utils.if_get_character()
-    v = video.Video(bvid=error_video)
-    if len(await v.get_pages()) > 1:
-        type = True
-    else:
-        type = False
-    media_path = Utils.get_media_path(type)
+    v = video.Video(bvid=bv, credential=credential)
+    if len(await v.get_pages()) != 0:
+        media_path = Utils.get_media_path(True)
+        process = process_pages_video.ProcessPagesVideo(
+            media_path=media_path,
+            if_get_character=if_people_path,
+            emby_persons_path=people_path,
+            video_id=bv,
+        )
+        await process.get_video_info()
+        await process.retry_one_page(page)
+    # if len(await v.get_pages()) > 1:
+    #     type = True
+    # else:
+    #     type = False
+    media_path = Utils.get_media_path(False)
     Utils.remove_error_video({"bvid": error_video})
     _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
-    await BilibiliOneVideoProcess(
-        error_video,
+    await BilibiliProcess(
+        bv,
         emby_persons_path=people_path,
         if_get_character=if_people_path,
         media_path=media_path,
@@ -659,7 +680,7 @@ class ListenUploadVideo:
         官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
         so bilibili fuck you!
         """
-        _LOGGER.info(f"开始监听用户 {self.uid} 是否上传新视频")
+        _LOGGER.info(f"开始查询用户 {self.uid} 是否上传新视频")
         if not os.path.exists(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
@@ -677,14 +698,15 @@ class ListenUploadVideo:
                 return
             else:
                 _LOGGER.info(f"用户 {self.uid} 发布了新视频：{video_info['title']}  开始下载")
-                await self.modify_data(self.uid, last_video["created"], "update")
-                await self.save_data(f"{local_path}/listen_up.json")
-                await BilibiliOneVideoProcess(
+                res = await BilibiliProcess(
                     last_video["bvid"],
                     if_get_character=self.if_get_character,
                     media_path=self.media_path,
                     emby_persons_path=self.emby_persons_path,
                 ).process()
+                if res:
+                    await self.modify_data(self.uid, last_video["created"], "update")
+                    await self.save_data(f"{local_path}/listen_up.json")
                 return
         elif await self.query_data(self.uid) is None:
             await self.modify_data(self.uid, last_video["created"], "add")
@@ -721,16 +743,12 @@ class ListenUploadVideo:
 
     async def save_data(self, file_name):
         with open(file_name, "w") as f:
-            # 将 data 字典序列化为 JSON 字符串
             content = json.dumps(up_data)
-            # 将 JSON 字符串写入文件
             f.write(content)
 
     async def load_data(self, file_name):
         with open(file_name, "r") as f:
-            # 读取文件内容
             content = f.read()
-            # 将 JSON 字符串反序列化为 data 字典
             up_data.update(json.loads(content))
 
 
@@ -874,7 +892,7 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     tasks = [
-        BilibiliOneVideoProcess(
+        BilibiliProcess(
             i,
             emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
             if_get_character=True,

@@ -3,22 +3,34 @@
 """
 import asyncio
 import os
+import shutil
+import sys
 import time
 import traceback
+import logging
 
 import ffmpeg
 import loguru
 from bilibili_api import video, ass, exceptions
 from lxml import etree
 
-import bilibili_main
-import bilibili_login
+from . import bilibili_main
+from . import global_value
 
-_LOGGER = loguru.logger
+local_path = os.path.split(os.path.realpath(__file__))[0]
+if not os.path.exists(f"{local_path}/logs"):
+    os.mkdir(f"{local_path}/logs")
+sys.stderr = open(f"{local_path}/logs/pages_stderr.log", "w")
+_LOGGER = logging.getLogger(__name__)
 path = ""
 root = ""
-# credential = bilibili_login.LoginBilibili().by_scan_qrcode()
-credential = None
+credential = global_value.get_value("credential")
+
+
+def get_config():
+    global credential
+    credential = global_value.get_value("credential")
+    _LOGGER.info(f"重载cookie配置：{credential}")
 
 
 class ProcessPagesVideo:
@@ -31,15 +43,15 @@ class ProcessPagesVideo:
         self.emby_persons_path = emby_persons_path
         self.media_path = media_path
 
-    async def _get_video_info(self):
+    async def get_video_info(self):
         try:
             self.v = video.Video(bvid=self.video_id, credential=self.credential)
             self.video_info = await self.v.get_info()
             self.pages_num = len(await self.v.get_pages())
-            raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
-            self.video_path = (
-                f"{bilibili_main.local_path}/{self.video_info['title']} ({raw_year})"
+            self.raw_year = time.strftime(
+                "%Y", time.localtime(self.video_info["pubdate"])
             )
+            self.video_path = f"{bilibili_main.local_path}/{self.video_info['title']} ({self.raw_year})"
             self.title = f"「{self.video_info['title']}」"
         except Exception as e:
             _LOGGER.error(f"获取视频信息失败，视频id：{self.video_id}")
@@ -47,7 +59,7 @@ class ProcessPagesVideo:
             _LOGGER.error(f"报错原因：{tracebacklog}")
             return None
 
-    async def _download_video(self, page):
+    async def download_video(self, page):
         try:
             if not os.path.exists(f"{self.video_path}/Season 1"):
                 os.makedirs(f"{self.video_path}/Season 1", exist_ok=True)
@@ -107,7 +119,7 @@ class ProcessPagesVideo:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _download_video_cover(self):
+    async def download_video_cover(self):
         """下载视频封面"""
         if bilibili_main.Utils.read_error_video(self.video_info):
             return
@@ -123,7 +135,7 @@ class ProcessPagesVideo:
             await bilibili_main.Utils.delete_video_folder(self.video_info)
             return None
 
-    async def _gen_video_nfo(self, page, media_type):
+    async def gen_video_nfo(self, page, media_type):
         """生成视频nfo文件
 
         :param page: 第几P
@@ -158,7 +170,11 @@ class ProcessPagesVideo:
             genre = etree.SubElement(root, "genre")
             genre.text = video_info["tname"]
             runtime = etree.SubElement(root, "runtime")
-            runtime.text = str(video_info["duration"] // 60)
+            runtime.text = (
+                str(self.video_info["duration"] // 60)
+                if self.video_info["duration"] // 60 > 0
+                else "1"
+            )
             try:
                 for character in video_info["staff"]:
                     actor = etree.SubElement(root, "actor")
@@ -185,14 +201,14 @@ class ProcessPagesVideo:
             _LOGGER.info("视频nfo文件生成完成")
         except Exception as e:
             _LOGGER.error(f"nfo生成失败，已记录视频id，稍后重试")
-            bilibili_main.Utils.write_error_video(self.video_info, page)
+            bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
             )
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _get_screenshot(self, page):
+    async def get_screenshot(self, page):
         """获取视频截图"""
         try:
             if bilibili_main.Utils.read_error_video(self.video_info, page):
@@ -222,21 +238,57 @@ class ProcessPagesVideo:
     async def retry_one_page(self, page):
         """重试下载某一P"""
         try:
-            if bilibili_main.Utils.read_error_video(self.video_info, page):
-                return
-            _LOGGER.info(f"开始重试第{page + 1}P")
-            await self._download_one_page(page)
-            _LOGGER.info(f"第{page + 1}P重试完成")
+            _LOGGER.info(f"开始重试第{page}P")
+            media_path = bilibili_main.Utils.get_media_path(True)
+            # media_path = "E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby"
+            if os.path.exists(
+                    f"{media_path}/bilibili/{self.video_info['title']} ({self.raw_year})/Season 1"
+            ):
+                _LOGGER.info(f"开始重试第{page}P")
+                page = int(page)
+                # bProcess = bilibili_main.BilibiliProcess(
+                #     self.video_id,
+                #     self.media_path,
+                #     self.emby_persons_path,
+                #     self.if_get_character,
+                # )
+                # await bProcess.get_video_info()
+                # await bProcess.download_video()
+                # await bProcess.download_video_cover()
+                # await bProcess.gen_video_nfo()
+                # await bProcess.downlod_ass_danmakus()
+                await self.get_video_info()
+                await self.download_video(page=page - 1)
+                await self.gen_video_nfo(media_type=2, page=page - 1)
+                await self.get_screenshot(page=page - 1)
+                await self.downlod_ass_danmakus(page=page - 1)
+                if bilibili_main.Utils.read_error_video(self.video_info):
+                    bilibili_main.Utils.remove_error_video(self.video_info)
+                    return
+                file_list = os.listdir(f"{self.video_path}/Season 1")
+                for file in file_list:
+                    src = os.path.join(self.video_path, file)
+                    dst = os.path.join(
+                        f"{media_path}/bilibili/{self.video_info['title']} ({self.raw_year})/Season 1",
+                        file,
+                    )
+                    shutil.move(src, dst)
+                shutil.rmtree(
+                    f"{bilibili_main.local_path}/{self.video_info['title']} ({self.raw_year})"
+                )
+                _LOGGER.info(f"第{str(page + 1)}P重试完成，已移动至媒体目录")
+            else:
+                _LOGGER.error(f"视频文件夹不存在，稍后重试")
         except Exception as e:
-            _LOGGER.error(f"第{page + 1}P重试失败，已记录视频id，稍后重试")
-            bilibili_main.Utils.write_error_video(self.video_info, page)
+            _LOGGER.error(f"第{str(page + 1)}P重试失败，已记录视频id，稍后重试")
+            bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
             )
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
-    async def _downlod_ass_danmakus(self, page):
+    async def downlod_ass_danmakus(self, page):
         """下载弹幕"""
         try:
             if bilibili_main.Utils.read_error_video(self.video_info, page):
@@ -257,7 +309,7 @@ class ProcessPagesVideo:
             _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
         except Exception:
             _LOGGER.error(f"视频 {self.title} 弹幕下载失败，已记录视频id，稍后重试")
-            bilibili_main.Utils.write_error_video(self.video_info, page)
+            bilibili_main.Utils.write_error_video(self.video_info, page + 1)
             await bilibili_main.Utils.delete_video_folder(
                 self.video_info, target_str=f"S01E{page + 1:02d}"
             )
@@ -270,7 +322,14 @@ class ProcessPagesVideo:
             with open(f"{bilibili_main.local_path}/error_video.txt", "w") as f:
                 pass
         try:
-            await self._get_video_info()
+            bProcess = bilibili_main.BilibiliProcess(
+                self.video_id,
+                self.media_path,
+                self.emby_persons_path,
+                self.if_get_character,
+            )
+            await self.get_video_info()
+            await bProcess.get_video_info()
         except Exception:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确")
@@ -279,19 +338,12 @@ class ProcessPagesVideo:
         if bilibili_main.Utils.read_error_video(self.video_info):
             return
         for page in range(self.pages_num):
-            await self._download_video(page)
-            await self._gen_video_nfo(page, 2)
-            await self._get_screenshot(page)
-            await self._downlod_ass_danmakus(page)
-        await self._gen_video_nfo(0, 1)
-        await self._download_video_cover()
-        bProcess = bilibili_main.BilibiliOneVideoProcess(
-            self.video_id,
-            self.media_path,
-            self.emby_persons_path,
-            self.if_get_character,
-        )
-        await bProcess.get_video_info()
+            await self.download_video(page)
+            await self.gen_video_nfo(page, 2)
+            await self.get_screenshot(page)
+            await self.downlod_ass_danmakus(page)
+        await self.gen_video_nfo(0, 1)
+        await self.download_video_cover()
         if self.if_get_character:
             await bProcess.gen_character_nfo()
             await bProcess.download_character_folder()
@@ -304,11 +356,12 @@ class ProcessPagesVideo:
 
 
 if __name__ == "__main__":
-    asyncio.run(
-        ProcessPagesVideo(
-            video_id="BV1ZD4y1h78p",
-            emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
-            if_get_character=True,
-            media_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
-        ).process()
+    print("111")
+    ll = ProcessPagesVideo(
+        video_id="BV1ZD4y1h78p",
+        emby_persons_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
+        if_get_character=True,
+        media_path="E:\PycharmProjects\MovieRobotPlugins\BilibiliDownloadToEmby",
     )
+    asyncio.run(ll.get_video_info())
+    asyncio.run(ll.retry_one_page(2))

@@ -1,10 +1,12 @@
 import logging
 import os
+from . import global_value
+
+global_value.init()
 
 _LOGGER = logging.getLogger(__name__)
 dependent_modules = {
     "bilibili_api": "bilibili-api-python",
-    "zxing": "zxing",
     "apscheduler": "apscheduler",
     "PIL": "pillow",
 }
@@ -23,6 +25,6 @@ def install():
 
 install()
 
+from .events import *
 from .cron_tasks import *
 from .mr_commands import *
-from .events import *
