@@ -19,10 +19,12 @@ from moviebotapi import MovieBotServer
 from moviebotapi.core.session import AccessKeySession
 from mbot.openapi import mbot_api
 
-# from .constant import SERVER_URL, ACCESS_KEY
+# from constant import SERVER_URL, ACCESS_KEY
 from . import global_value
 from . import bilibili_main
 from . import process_pages_video
+
+# import global_value, bilibili_main, process_pages_video
 
 # server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 server = mbot_api
@@ -30,6 +32,7 @@ API = get_api("login")
 sys.stderr = open(f"{bilibili_main.local_path}/logs/pages_stderr.log", "w")
 _LOGGER = logging.getLogger(__name__)
 login_key = ""
+number = 0
 
 
 def pad_image(image, target_size):
@@ -48,17 +51,19 @@ def pad_image(image, target_size):
 @tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_fixed(5))
 def send_qrcode(img):
     """发送二维码(走mr推送渠道)"""
-    files = {"file": ("qrcode.png", open(img, "rb"), "image/png")}
-    data = {"file_id": 0, "img_type": "catBox"}
-    res = requests.post(
-        url="https://free-pic.hzz.cool/upload.php", files=files, data=data
-    )  # 随便找了个公共图床
+    # files = {"file": ("qrcode.png", open(img, "rb"), "image/png")}
+    # data = {"file_id": 0, "img_type": "catBox"}
+    # res = requests.post(
+    #     url="https://free-pic.hzz.cool/upload.php", files=files, data=data
+    # )  # 随便找了个公共图床
+    files = {"image": ("qrcode.png", open(img, "rb"), "image/png")}
+    res = requests.post(url="https://www.imgtp.com/api/upload", files=files)
     res = res.json()
     if res["code"] == 200:
-        url = res["data"]["url"].replace("\/", "/")
+        # url = res["data"]["url"].replace("\/", "/")
         server.notify.send_message_by_tmpl(
             title="截图扫码登录（请在120s内登录）",
-            context={"pic_url": url},
+            context={"pic_url": res["data"]["url"]},
             body="截图到bilibili扫码登录",
             to_uid=1,
         )
@@ -80,6 +85,7 @@ def events():
     )
     if "code" in events.keys() and events["code"] == -412:
         _LOGGER.info(events["message"] + "等待重试")
+        server.notify.send_text_message(title="风控", to_uid=1, body=events["message"] + "该二维码已废弃，请等待重试")
         raise exceptions.LoginError(events["message"])
     if isinstance(events["data"], dict):
         url = events["data"]["url"]
@@ -128,7 +134,7 @@ class LoginBilibili:
     )
     def by_scan_qrcode(self):
         """扫码登录 如果没登录就无限重发"""
-        _LOGGER.info("收到登录请求")
+        _LOGGER.info("收到登录请求，由于网络等原因，发送时间可能较长，请耐心等待")
         img = update_qrcode()
         image = PIL.Image.open(img)
         image = pad_image(image, (1068, 455))
@@ -142,7 +148,7 @@ class LoginBilibili:
                 global_value.set_value("cookie_is_valid", True)
                 bilibili_main.get_config()
                 process_pages_video.get_config()
-                server.notify.send_text_message(title="b站登录成功", to_uid=1, body="登录成功")
+                server.notify.send_text_message(title="b站登录成功", to_uid=1, body="b站登录成功")
                 return
             else:
                 if time.time() - start > 120:

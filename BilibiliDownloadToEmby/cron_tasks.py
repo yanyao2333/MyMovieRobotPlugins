@@ -18,7 +18,7 @@ media_path = bilibili_main.Utils.get_media_path(False)
 _LOGGER = logging.getLogger(__name__)
 sched = BlockingScheduler()
 server = mbot_api
-
+num = 0
 
 def get_config(follow_uid):
     global follow_uid_list
@@ -28,6 +28,9 @@ def get_config(follow_uid):
 @plugin.task("retry_download", "重新下载之前报错的视频", cron_expression="*/8 * * * *")
 def retry_download():
     # 重试下载
+    if not global_value.get_value("cookie_is_valid"):
+        _LOGGER.warning("还没登录bilibili账号，定时任务停止运行")
+        return False
     _LOGGER.info("开始运行定时任务：查询是否有需要重试下载的id")
     asyncio.run(bilibili_main.retry_video())
 
@@ -35,6 +38,9 @@ def retry_download():
 @plugin.task("check_up_update", "查询追更的up主是否更新", cron_expression="*/5 * * * *")
 def check_update():
     # 检查视频更新
+    if not global_value.get_value("cookie_is_valid"):
+        _LOGGER.warning("还没登录bilibili账号，定时任务停止运行")
+        # return False
     _LOGGER.info("开始运行定时任务：查询追更的up主是否更新")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -49,25 +55,31 @@ def check_update():
     loop.run_until_complete(asyncio.wait(tasks))
 
 
-@plugin.task("check_cookie_is_valid", "检查cookie是否过期", cron_expression="*/30 * * * *")
+@plugin.task("check_cookie_is_valid", "检查cookie是否过期", cron_expression="*/2 * * * *")
 def check_cookie_is_valid():
     # 检查cookie是否过期
-    _LOGGER.info("开始运行定时任务：检查cookie是否过期")
+    # _LOGGER.info("开始运行定时任务：检查cookie是否过期")
+    global num
     cookies = global_value.get_value("credential")
-    if not global_value.get_value("is_cookie_valid"):
-        _LOGGER.info("cookie在有效期内，跳过")
+    cookies = cookies.get_cookies()
+    if global_value.get_value("is_cookie_valid"):
+        # _LOGGER.info("cookie在有效期内，跳过")
         return
     elif sync(
             Credential(
                 sessdata=cookies["SESSDATA"],
                 bili_jct=cookies["bili_jct"],
-                dedeuserid=cookies["DEDEUSERID"],
             ).check_valid()
     ):
-        _LOGGER.info("cookie有效")
+        global_value.set_value("is_cookie_valid", True)
+        # _LOGGER.info("cookie有效")
     else:
-        _LOGGER.info("cookie已过期或没登录，请重新登录")
+        # _LOGGER.info("cookie已过期或没登录，请重新登录")
         global_value.set_value("is_cookie_valid", False)
-        server.notify.send_text_message(
-            title="b站cookie过期，请重新扫码登录", to_uid=1, body="请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆"
-        )
+        if num == 15:
+            server.notify.send_text_message(
+                title="b站cookie过期，请重新扫码登录", to_uid=1, body="请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆"
+            )
+            num = 0
+        else:
+            num += 1

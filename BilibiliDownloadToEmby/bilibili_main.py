@@ -27,6 +27,7 @@ from moviebotapi import MovieBotServer
 from mbot.openapi import mbot_api
 
 from moviebotapi.core.session import AccessKeySession
+
 # from .constant import SERVER_URL, ACCESS_KEY
 from . import global_value
 from . import mr_api, process_pages_video
@@ -445,7 +446,7 @@ class BilibiliProcess:
                 fly_time=13,
                 alpha=0.75,
                 font_size=20,
-                static_time=5
+                static_time=5,
             )
             _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
         except exceptions.DanmakuClosedException:
@@ -688,39 +689,43 @@ class ListenUploadVideo:
         if not os.path.exists(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
+        if not await self.query_data(uid=self.uid):
+            await self.modify_data(uid=self.uid, time=int(datetime.datetime.now().timestamp()), mode="add")
         all_video = await user.User(credential=credential, uid=self.uid).get_videos()
-        last_video = all_video["list"]["vlist"][0]
-        if await self.query_data(self.uid) is not None and self.compare_time(
-                last_video["created"], await self.query_data(self.uid)
-        ):
-            video_info = await video.Video(bvid=last_video["bvid"]).get_info()
-            if len(await video.Video(bvid=last_video["bvid"]).get_pages()) > 1:
-                _LOGGER.info(f"用户{self.uid}发布了分p视频，忽略")
-                await self.modify_data(self.uid, last_video["created"], "update")
-                Notify(video_info).send_pages_video_request(self.uid)
-                await self.save_data(f"{local_path}/listen_up.json")
-                return
-            else:
-                _LOGGER.info(f"用户 {self.uid} 发布了新视频：{video_info['title']}  开始下载")
-                res = await BilibiliProcess(
-                    last_video["bvid"],
-                    if_get_character=self.if_get_character,
-                    media_path=self.media_path,
-                    emby_persons_path=self.emby_persons_path,
-                ).process()
-                if res:
-                    await self.modify_data(self.uid, last_video["created"], "update")
+        video_list = all_video["list"]["vlist"]
+        for v in reversed(video_list):
+            if await self.query_data(self.uid) is not None and self.compare_time(
+                    v["created"], await self.query_data(self.uid)
+            ):
+                t = await self.query_data(self.uid)
+                video_info = await video.Video(bvid=v["bvid"]).get_info()
+                if len(await video.Video(bvid=v["bvid"]).get_pages()) > 1:
+                    _LOGGER.info(f"用户{self.uid}发布了分p视频，忽略")
+                    await self.modify_data(self.uid, v["created"], "update")
+                    Notify(video_info).send_pages_video_notify(self.uid)
                     await self.save_data(f"{local_path}/listen_up.json")
-                return
-        elif await self.query_data(self.uid) is None:
-            await self.modify_data(self.uid, last_video["created"], "add")
-            await self.save_data(f"{local_path}/listen_up.json")
-            return
-        elif not self.compare_time(
-                last_video["created"], await self.query_data(self.uid)
-        ):
-            await self.save_data(f"{local_path}/listen_up.json")
-            return
+                    continue
+                else:
+                    _LOGGER.info(f"用户 {self.uid} 发布了新视频：{video_info['title']}  开始下载")
+                    res = await BilibiliProcess(
+                        v["bvid"],
+                        if_get_character=self.if_get_character,
+                        media_path=self.media_path,
+                        emby_persons_path=self.emby_persons_path,
+                    ).process()
+                    if res:
+                        await self.modify_data(self.uid, v["created"], "update")
+                        await self.save_data(f"{local_path}/listen_up.json")
+                    continue
+            elif await self.query_data(self.uid) is None:
+                await self.modify_data(self.uid, v["created"], "add")
+                await self.save_data(f"{local_path}/listen_up.json")
+                continue
+            elif not self.compare_time(
+                    v["created"], await self.query_data(self.uid)
+            ):
+                await self.save_data(f"{local_path}/listen_up.json")
+                continue
 
     def compare_time(self, v_timestamp, last_timestamp):
         """比较时间"""
@@ -731,6 +736,7 @@ class ListenUploadVideo:
         else:
             return False
 
+    # 以下为json文件数据处理部分
     async def modify_data(self, uid, time, mode):
         if mode == "add":
             up_data[uid] = time
@@ -807,7 +813,7 @@ class Notify:
         self.send_message_by_templ()
         self.send_sys_message()
 
-    def send_pages_video_request(self, uid):
+    def send_pages_video_notify(self, uid):
         """发送分p视频通知"""
         _LOGGER.info("开始发送分p视频通知")
         server.notify.send_system_message(
