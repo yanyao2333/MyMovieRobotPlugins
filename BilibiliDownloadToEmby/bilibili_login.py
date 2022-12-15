@@ -51,16 +51,10 @@ def pad_image(image, target_size):
 @tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_fixed(5))
 def send_qrcode(img):
     """发送二维码(走mr推送渠道)"""
-    # files = {"file": ("qrcode.png", open(img, "rb"), "image/png")}
-    # data = {"file_id": 0, "img_type": "catBox"}
-    # res = requests.post(
-    #     url="https://free-pic.hzz.cool/upload.php", files=files, data=data
-    # )  # 随便找了个公共图床
     files = {"image": ("qrcode.png", open(img, "rb"), "image/png")}
     res = requests.post(url="https://www.imgtp.com/api/upload", files=files)
     res = res.json()
     if res["code"] == 200:
-        # url = res["data"]["url"].replace("\/", "/")
         server.notify.send_message_by_tmpl(
             title="截图扫码登录（请在120s内登录）",
             context={"pic_url": res["data"]["url"]},

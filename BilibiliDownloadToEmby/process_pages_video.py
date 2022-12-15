@@ -18,9 +18,9 @@ from . import bilibili_main
 from . import global_value
 
 local_path = os.path.split(os.path.realpath(__file__))[0]
-if not os.path.exists(f"{local_path}/logs"):
-    os.mkdir(f"{local_path}/logs")
-sys.stderr = open(f"{local_path}/logs/pages_stderr.log", "w")
+# if not os.path.exists(f"{local_path}/logs"):
+#     os.mkdir(f"{local_path}/logs")
+# sys.stderr = open(f"{local_path}/logs/pages_stderr.log", "w")
 _LOGGER = logging.getLogger(__name__)
 path = ""
 root = ""

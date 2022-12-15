@@ -7,8 +7,6 @@ global_value.init()
 _LOGGER = logging.getLogger(__name__)
 dependent_modules = {
     "bilibili_api": "bilibili-api-python",
-    "apscheduler": "apscheduler",
-    "PIL": "pillow",
 }
 source = "https://pypi.tuna.tsinghua.edu.cn/simple"
 

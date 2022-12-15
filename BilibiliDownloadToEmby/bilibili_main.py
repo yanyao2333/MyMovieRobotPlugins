@@ -36,9 +36,9 @@ _LOGGER = logging.getLogger(__name__)
 # _LOGGER = loguru.logger
 # server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 local_path = os.path.split(os.path.realpath(__file__))[0]
-if not os.path.exists(f"{local_path}/logs"):
-    os.mkdir(f"{local_path}/logs")
-sys.stderr = open(f"{local_path}/logs/main_stderr.log", "w")
+# if not os.path.exists(f"{local_path}/logs"):
+#     os.mkdir(f"{local_path}/logs")
+# sys.stderr = open(f"{local_path}/logs/main_stderr.log", "w")
 server = mbot_api
 credential = global_value.get_value("credential")
 _LOGGER.info(f"cookie：{credential}")
@@ -457,6 +457,7 @@ class BilibiliProcess:
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
+            with httpx.Client(proxies=)
 
     async def process(self):
         """运行入口函数"""
