@@ -843,6 +843,7 @@ class DownloadFunc:
         stop=tenacity.stop_after_attempt(6),
         wait=tenacity.wait_fixed(50),
         retry=tenacity.retry_if_result(lambda result: result is False),
+        reraise=True,
     )
     async def download_cover(self):
         """
@@ -867,6 +868,7 @@ class DownloadFunc:
         stop=tenacity.stop_after_attempt(6),
         wait=tenacity.wait_fixed(50),
         retry=tenacity.retry_if_result(lambda result: result is False),
+        reraise=True,
     )
     async def download_with_resume(self):
         """这个是我瞎写的包含断点续传功能的下载方法"""
