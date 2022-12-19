@@ -84,6 +84,7 @@ class BilibiliProcess:
         v = video.Video(bvid=self.video_id, credential=self.credential)
         try:
             self.video_info = await v.get_info()
+            self.video_info['title'] = self.video_info['title'].replace("/", " ")
             self.title = f"「{self.video_info['title']}」"
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             self.video_path = f"{local_path}/{self.video_info['title']} ({raw_year})"
@@ -457,7 +458,6 @@ class BilibiliProcess:
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
-            with httpx.Client(proxies=)
 
     async def process(self):
         """运行入口函数"""
@@ -692,7 +692,7 @@ class ListenUploadVideo:
         await self.load_data(f"{local_path}/listen_up.json")
         if not await self.query_data(uid=self.uid):
             await self.modify_data(uid=self.uid, time=int(datetime.datetime.now().timestamp()), mode="add")
-        all_video = await user.User(credential=credential, uid=self.uid).get_videos()
+        all_video = await user.User(credential=credential, uid=self.uid).get_videos(ps=50)
         video_list = all_video["list"]["vlist"]
         for v in reversed(video_list):
             if await self.query_data(self.uid) is not None and self.compare_time(

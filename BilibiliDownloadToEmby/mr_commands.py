@@ -39,6 +39,7 @@ def download(
 ):
     try:
         if not global_value.get_value("cookie_is_valid"):
+            _LOGGER.info("请登录b站后再尝试下载！")
             return PluginCommandResponse(False, "请先扫码登录b站再试！")
         video_id = video_id.split(",") if "," in video_id else video_id
         _LOGGER.info(f"提交内容: {video_id}")
@@ -91,7 +92,7 @@ def download(
     name="login_bilibili_by_qrcode",
     title="扫码登录bilibili",
     desc="点击后会向mr设置的通知渠道发送二维码，在bilibili扫码即可",
-    icon="CloudDownload",
+    icon="Login",
     run_in_background=True,
 )
 def download(ctx: PluginCommandContext):

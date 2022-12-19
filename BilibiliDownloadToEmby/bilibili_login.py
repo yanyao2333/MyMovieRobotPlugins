@@ -29,10 +29,12 @@ from . import process_pages_video
 # server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
 server = mbot_api
 API = get_api("login")
-sys.stderr = open(f"{bilibili_main.local_path}/logs/pages_stderr.log", "w")
+# sys.stderr = open(f"{bilibili_main.local_path}/logs/pages_stderr.log", "w")
 _LOGGER = logging.getLogger(__name__)
 login_key = ""
-number = 0
+
+
+# number = 0
 
 
 def pad_image(image, target_size):
@@ -56,7 +58,7 @@ def send_qrcode(img):
     res = res.json()
     if res["code"] == 200:
         server.notify.send_message_by_tmpl(
-            title="截图扫码登录（请在120s内登录）",
+            title=" ",
             context={"pic_url": res["data"]["url"]},
             body="截图到bilibili扫码登录",
             to_uid=1,
@@ -78,9 +80,11 @@ def events():
         ).text
     )
     if "code" in events.keys() and events["code"] == -412:
-        _LOGGER.info(events["message"] + "等待重试")
-        server.notify.send_text_message(title="风控", to_uid=1, body=events["message"] + "该二维码已废弃，请等待重试")
-        raise exceptions.LoginError(events["message"])
+        _LOGGER.info(events["message"] + "二维码废弃，请重新登录")
+        server.notify.send_text_message(title="风控", to_uid=1,
+                                        body=events["message"] + f"该二维码已废弃，请去mr插件快捷功能中重新获取")
+        # raise exceptions.LoginError(events["message"])
+        return False
     if isinstance(events["data"], dict):
         url = events["data"]["url"]
         cookies_list = url.split("?")[1].split("&")
@@ -121,13 +125,13 @@ def update_qrcode():
 class LoginBilibili:
     """登录类"""
 
-    @tenacity.retry(
-        stop=tenacity.stop_after_attempt(3),
-        wait=tenacity.wait_fixed(120),
-        retry=tenacity.retry_if_exception_type(exceptions.LoginError),
-    )
+    # @tenacity.retry(
+    #     stop=tenacity.stop_after_attempt(3),
+    #     wait=tenacity.wait_fixed(120),
+    #     retry=tenacity.retry_if_exception_type(exceptions.LoginError),
+    # )
     def by_scan_qrcode(self):
-        """扫码登录 如果没登录就无限重发"""
+        """扫码登录"""
         _LOGGER.info("收到登录请求，由于网络等原因，发送时间可能较长，请耐心等待")
         img = update_qrcode()
         image = PIL.Image.open(img)
@@ -143,6 +147,8 @@ class LoginBilibili:
                 bilibili_main.get_config()
                 process_pages_video.get_config()
                 server.notify.send_text_message(title="b站登录成功", to_uid=1, body="b站登录成功")
+                return
+            elif credential is False:
                 return
             else:
                 if time.time() - start > 120:

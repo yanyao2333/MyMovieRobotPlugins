@@ -47,6 +47,7 @@ class ProcessPagesVideo:
         try:
             self.v = video.Video(bvid=self.video_id, credential=self.credential)
             self.video_info = await self.v.get_info()
+            self.video_info['title'] = self.video_info['title'].replace("/", " ")
             self.pages_num = len(await self.v.get_pages())
             self.raw_year = time.strftime(
                 "%Y", time.localtime(self.video_info["pubdate"])
