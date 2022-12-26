@@ -14,9 +14,39 @@ from . import cron_tasks
 from . import global_value
 from . import bilibili_login
 from . import process_pages_video
+from pydantic import BaseModel, validator
+from typing import Optional
 
 _LOGGER = logging.getLogger(__name__)
 server = mbot_api
+
+
+class danmaku_config_model(BaseModel):
+    """弹幕配置"""
+    font_size: Optional[float] = 25
+    alpha: Optional[float] = 1
+    fly_time: Optional[float] = 7
+    static_time: Optional[float] = 5
+    number: Optional[int]
+
+    @validator('danmaku_alpha')
+    def danmaku_alpha_validator(cls, v):
+        if 1 < v <= 100:
+            v = v / 100
+        elif v < 1:
+            v = v
+        else:
+            v = 1
+            _LOGGER.warning('弹幕透明度设置错误，已自动设置为1')
+        return v
+
+
+def get_danmaku_config(config: Dict):
+    """获取弹幕配置"""
+    config = {k: v for k, v in config.items() if v}
+    danmaku_config_dict = danmaku_config_model.parse_obj(config)
+    _LOGGER.info(f"弹幕配置: {danmaku_config_dict}")
+    return danmaku_config_dict
 
 
 @plugin.after_setup
@@ -42,6 +72,7 @@ def _(plugin: PluginMeta, config: Dict):
             )
             global_value.set_value("cookie_is_valid", True)
             _LOGGER.info("cookie处在有效期内，不再登录，开始启动定时任务")
+            global_value.set_value("danmaku_config", get_danmaku_config(config))
             bilibili_main.get_config()
             process_pages_video.get_config()
     else:
@@ -95,5 +126,6 @@ def _(config: Dict):
         if config.get("follow_uid_list")
         else []
     )
+    global_value.set_value("danmaku_config", get_danmaku_config(config))
     _LOGGER.info(f"插件配置更新。关注列表: {follow_uid_list}")
     cron_tasks.get_config(follow_uid_list)

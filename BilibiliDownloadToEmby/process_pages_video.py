@@ -25,6 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 path = ""
 root = ""
 credential = global_value.get_value("credential")
+danmaku_config = global_value.get_value("danmaku_config")
 
 
 def get_config():
@@ -301,9 +302,10 @@ class ProcessPagesVideo:
                 video.Video(self.video_id),
                 page,
                 path,
-                fly_time=13,
-                alpha=0.75,
-                font_size=20,
+                fly_time=danmaku_config["fly_time"],
+                alpha=danmaku_config["alpha"],
+                font_size=danmaku_config["font_size"],
+                static_time=danmaku_config["static_time"],
             )
             _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
         except exceptions.DanmakuClosedException:

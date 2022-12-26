@@ -79,9 +79,10 @@ def events():
             cookies={"buvid3": str(uuid.uuid1()), "Domain": ".bilibili.com"},
         ).text
     )
+    _LOGGER.info(events)
     if "code" in events.keys() and events["code"] == -412:
         _LOGGER.info(events["message"] + "二维码废弃，请重新登录")
-        server.notify.send_text_message(title="风控", to_uid=1,
+        server.notify.send_text_message(title="b站登录风控", to_uid=1,
                                         body=events["message"] + f"该二维码已废弃，请去mr插件快捷功能中重新获取")
         # raise exceptions.LoginError(events["message"])
         return False
@@ -153,7 +154,8 @@ class LoginBilibili:
             else:
                 if time.time() - start > 120:
                     _LOGGER.error("登录超时")
-                    raise exceptions.LoginError("登录超时 等待60s后重试")
+                    server.notify.send_text_message(title="b站登录超时", to_uid=1, body="二维码过期，请重新获取")
+            time.sleep(2)
 
     def by_cookie(self, SESSDATA, BILI_JCT, BUVID3):
         """cookie登录"""

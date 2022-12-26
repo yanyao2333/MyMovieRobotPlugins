@@ -12,6 +12,41 @@
       "label": "追更up列表",
       "helperText": "填写需要追更的up的uid，多个uid用英文逗号隔开，如：123456,654321",
       "defaultValue": ""
+    },
+    {
+      "fieldName": "font_size",
+      "fieldType": "String",
+      "label": "弹幕字号",
+      "helperText": "填写弹幕字号，如：25",
+      "defaultValue": "25"
+    },
+    {
+      "fieldName": "alpha",
+      "fieldType": "String",
+      "label": "弹幕透明度(0-1)",
+      "helperText": "填写弹幕透明度，如：0.8",
+      "defaultValue": "1"
+    },
+    {
+      "fieldName": "fly_time",
+      "fieldType": "String",
+      "label": "滚动弹幕持续时间",
+      "helperText": "滚动弹幕持续时间",
+      "defaultValue": "7"
+    },
+    {
+      "fieldName": "static_time",
+      "fieldType": "String",
+      "label": "静态弹幕持续时间",
+      "helperText": "静态弹幕持续时间",
+      "defaultValue": "5"
+    },
+    {
+      "fieldName": "number",
+      "fieldType": "String",
+      "label": "保留弹幕数量（暂时无效）",
+      "helperText": "保留弹幕数量，留空无限制（暂时无效）",
+      "defaultValue": ""
     }
   ],
   "logoUrl": "/plugins/BilibiliDownloadToEmby/logo.jpg",
