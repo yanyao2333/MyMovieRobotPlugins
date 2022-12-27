@@ -44,8 +44,8 @@
     {
       "fieldName": "number",
       "fieldType": "String",
-      "label": "保留弹幕数量（暂时无效）",
-      "helperText": "保留弹幕数量，留空无限制（暂时无效）",
+      "label": "保留弹幕数量",
+      "helperText": "保留弹幕数量，留空无限制",
       "defaultValue": ""
     }
   ],

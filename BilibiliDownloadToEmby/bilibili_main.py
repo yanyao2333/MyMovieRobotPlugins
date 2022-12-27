@@ -440,6 +440,7 @@ class BilibiliProcess:
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             path = f"{self.video_path}/{self.video_info['title']} ({raw_year}).danmakus.ass"
+            _LOGGER.info(f"弹幕样式：{danmaku_config}")
             # 这是我个人比较舒服的弹幕样式，可以自行修改(参照：https://nemo2011.github.io/bilibili-api/#/modules/ass?id=async-def-make_ass_file_danmakus_xml 这个链接上的值修改)
             await ass.make_ass_file_danmakus_protobuf(
                 video.Video(self.video_id),
@@ -451,6 +452,11 @@ class BilibiliProcess:
                 static_time=danmaku_config["static_time"],
             )
             _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
+            if danmaku_config["number"] is None:
+                return
+            else:
+                _LOGGER.info(f"开始随机删除弹幕到 {danmaku_config['number']} 条")
+                await Utils.remove_some_danmaku(path, danmaku_config["number"])
         except exceptions.DanmakuClosedException:
             _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
         except Exception:
@@ -621,6 +627,32 @@ class Utils:
                     f.write(line)
 
         return
+
+    @staticmethod
+    async def remove_some_danmaku(path, number):
+        """更改弹幕条数
+
+        :param path: 弹幕文件路径
+        :param number: 保留弹幕条数
+        """
+        try:
+            # 先备份弹幕文件
+            shutil.copy(path, f"{path}.bak")
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            danmaku_lines = lines[:18]
+            header_lines = lines[18:]
+            remove_interval = len(danmaku_lines) // number
+            with open(path, "w", encoding="utf-8") as f_w:
+                for i in range(0, len(danmaku_lines), remove_interval):
+                    danmaku_lines.pop(i)
+                for line in header_lines + danmaku_lines:
+                    f_w.write(line)
+        except Exception:
+            _LOGGER.error(f"更改弹幕条数失败，开始恢复原弹幕文件")
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"报错原因：{tracebacklog}")
+            shutil.copy(f"{path}.bak", path)
 
 
 async def retry_video():

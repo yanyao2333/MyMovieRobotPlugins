@@ -298,6 +298,7 @@ class ProcessPagesVideo:
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             path = f'{self.video_path}/Season 1/{self.video_info["title"]} S01E{page + 1:02d}.danmakus.ass'
             # 这是我个人比较舒服的弹幕样式，可以自行修改
+            _LOGGER.info(f"弹幕样式：{danmaku_config}")
             await ass.make_ass_file_danmakus_protobuf(
                 video.Video(self.video_id),
                 page,
@@ -308,6 +309,11 @@ class ProcessPagesVideo:
                 static_time=danmaku_config["static_time"],
             )
             _LOGGER.info(f"视频 {self.title} 弹幕下载完成")
+            if danmaku_config["number"] is None:
+                return
+            else:
+                _LOGGER.info(f"开始随机删除弹幕到 {danmaku_config['number']} 条")
+                await bilibili_main.Utils.remove_some_danmaku(path, danmaku_config["number"])
         except exceptions.DanmakuClosedException:
             _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
         except Exception:
