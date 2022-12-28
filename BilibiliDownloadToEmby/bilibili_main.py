@@ -855,6 +855,11 @@ class Notify:
             to_uid=1,
             message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
         )
+        server.notify.send_message_by_tmpl(
+            title="bilibili追更提醒",
+            to_uid=1,
+            message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
+        )
 
 
 class DownloadFunc:
