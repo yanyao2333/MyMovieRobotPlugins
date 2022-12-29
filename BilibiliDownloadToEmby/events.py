@@ -88,7 +88,7 @@ def _(plugin: PluginMeta, config: Dict):
         else []
     )
     _LOGGER.info(f"插件加载成功。关注列表: {follow_uid_list}")
-    cron_tasks.get_config(follow_uid_list)
+    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
 
 
 @plugin.config_changed
@@ -128,4 +128,4 @@ def _(config: Dict):
     )
     global_value.set_value("danmaku_config", get_danmaku_config(config))
     _LOGGER.info(f"插件配置更新。关注列表: {follow_uid_list}")
-    cron_tasks.get_config(follow_uid_list)
+    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))

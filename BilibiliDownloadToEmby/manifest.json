@@ -14,6 +14,13 @@
       "defaultValue": ""
     },
     {
+      "fieldName": "if_get_follow_list",
+      "fieldType": "Bool",
+      "label": "是否获取登录账号的关注列表作为追更up列表（不会覆盖上方填写的内容，只是叠加）",
+      "helperText": "",
+      "defaultValue": false
+    },
+    {
       "fieldName": "font_size",
       "fieldType": "String",
       "label": "弹幕字号",

@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 from mbot.core.plugins import plugin
-from bilibili_api import sync, Credential
+from bilibili_api import sync, Credential, user
 from mbot.openapi import mbot_api
 
 from . import bilibili_main
@@ -20,9 +20,33 @@ sched = BlockingScheduler()
 server = mbot_api
 num = 0
 
-def get_config(follow_uid):
+
+def get_config(follow_uid, if_get_follow_list):
     global follow_uid_list
-    follow_uid_list = follow_uid
+    if if_get_follow_list:
+        follow_uid_list = get_user_follow_list()
+        follow_uid_list += follow_uid
+    else:
+        follow_uid_list = follow_uid
+
+
+def get_user_follow_list():
+    """获取用户关注列表"""
+    if global_value.get_value("is_cookie_valid") and global_value.get_value("credential") is not None:
+        cre = global_value.get_value("credential")
+        uid = cre.dedeuserid
+        follow_list = sync(user.User(credential=cre, uid=uid).get_followings(cre, 1))
+        total_follow = follow_list["total"]
+        refresh_num = total_follow // 100 + 1
+        follow_list = []
+        for i in range(1, refresh_num + 1):
+            follow_list.extend(sync(user.User(credential=cre, uid=uid).get_followings(pn=i)))
+            follow_list = [i["mid"] for i in follow_list]
+        _LOGGER.info(f"获取到关注列表: {follow_list}")
+        return follow_list
+    else:
+        _LOGGER.info("cookie失效或还没登陆，无法获取关注列表")
+        return []
 
 
 @plugin.task("retry_download", "重新下载之前报错的视频", cron_expression="*/7 * * * *")
