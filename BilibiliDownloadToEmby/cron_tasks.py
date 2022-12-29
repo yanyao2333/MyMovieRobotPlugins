@@ -23,6 +23,7 @@ num = 0
 
 def get_config(follow_uid, if_get_follow_list):
     global follow_uid_list
+    follow_uid_list = []
     if if_get_follow_list:
         follow_uid_list = get_user_follow_list()
         follow_uid_list += follow_uid
@@ -32,7 +33,9 @@ def get_config(follow_uid, if_get_follow_list):
 
 def get_user_follow_list():
     """获取用户关注列表"""
-    if global_value.get_value("is_cookie_valid") and global_value.get_value("credential") is not None:
+    _LOGGER.info("正在获取用户关注列表")
+    # _LOGGER.info(str(global_value.get_value("cookie_is_valid"))+ "           "+str(global_value.get_value("credential")))
+    if global_value.get_value("cookie_is_valid") and global_value.get_value("credential") is not None:
         cre = global_value.get_value("credential")
         uid = cre.dedeuserid
         follow_list = sync(user.User(credential=cre, uid=uid).get_followings(cre, 1))
@@ -40,10 +43,11 @@ def get_user_follow_list():
         refresh_num = total_follow // 100 + 1
         follow_list = []
         for i in range(1, refresh_num + 1):
-            follow_list.extend(sync(user.User(credential=cre, uid=uid).get_followings(pn=i)))
-            follow_list = [i["mid"] for i in follow_list]
-        _LOGGER.info(f"获取到关注列表: {follow_list}")
-        return follow_list
+            follow_list.extend(sync(user.User(credential=cre, uid=uid).get_followings(pn=i))["list"])
+        for i in follow_list:
+            follow_uid_list.append(str(i["mid"]))
+        _LOGGER.info(f"获取到关注列表: {follow_uid_list}")
+        return follow_uid_list
     else:
         _LOGGER.info("cookie失效或还没登陆，无法获取关注列表")
         return []

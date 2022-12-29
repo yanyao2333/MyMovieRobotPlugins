@@ -29,7 +29,7 @@ class danmaku_config_model(BaseModel):
     static_time: Optional[float] = 5
     number: Optional[int]
 
-    @validator('danmaku_alpha')
+    @validator('alpha')
     def danmaku_alpha_validator(cls, v):
         if 1 < v <= 100:
             v = v / 100
@@ -44,7 +44,7 @@ class danmaku_config_model(BaseModel):
 def get_danmaku_config(config: Dict):
     """获取弹幕配置"""
     config = {k: v for k, v in config.items() if v}
-    danmaku_config_dict = danmaku_config_model.parse_obj(config)
+    danmaku_config_dict = dict(danmaku_config_model.parse_obj(config))
     _LOGGER.info(f"弹幕配置: {danmaku_config_dict}")
     return danmaku_config_dict
 
@@ -87,7 +87,7 @@ def _(plugin: PluginMeta, config: Dict):
         if config.get("follow_uid_list")
         else []
     )
-    _LOGGER.info(f"插件加载成功。关注列表: {follow_uid_list}")
+    _LOGGER.info(f"插件加载成功。")
     cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
 
 
@@ -127,5 +127,5 @@ def _(config: Dict):
         else []
     )
     global_value.set_value("danmaku_config", get_danmaku_config(config))
-    _LOGGER.info(f"插件配置更新。关注列表: {follow_uid_list}")
+    _LOGGER.info(f"插件配置更新。")
     cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))

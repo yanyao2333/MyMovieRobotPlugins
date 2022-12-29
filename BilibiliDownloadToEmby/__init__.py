@@ -7,6 +7,7 @@ global_value.init()
 _LOGGER = logging.getLogger(__name__)
 dependent_modules = {
     "bilibili_api": "bilibili-api-python",
+    "pydantic": "pydantic",
 }
 source = "https://pypi.tuna.tsinghua.edu.cn/simple"
 

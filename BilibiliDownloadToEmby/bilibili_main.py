@@ -440,6 +440,7 @@ class BilibiliProcess:
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             path = f"{self.video_path}/{self.video_info['title']} ({raw_year}).danmakus.ass"
+            danmaku_config = global_value.get_value("danmaku_config")
             _LOGGER.info(f"弹幕样式：{danmaku_config}")
             # 这是我个人比较舒服的弹幕样式，可以自行修改(参照：https://nemo2011.github.io/bilibili-api/#/modules/ass?id=async-def-make_ass_file_danmakus_xml 这个链接上的值修改)
             await ass.make_ass_file_danmakus_protobuf(
@@ -640,14 +641,14 @@ class Utils:
             shutil.copy(path, f"{path}.bak")
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-            danmaku_lines = lines[:18]
-            header_lines = lines[18:]
-            remove_interval = len(danmaku_lines) // number
-            with open(path, "w", encoding="utf-8") as f_w:
-                for i in range(0, len(danmaku_lines), remove_interval):
-                    danmaku_lines.pop(i)
-                for line in header_lines + danmaku_lines:
-                    f_w.write(line)
+            danmaku_lines = lines[17:]
+            header_lines = lines[:17]
+            # _LOGGER.info(f"弹幕条数：{len(danmaku_lines)}，保留弹幕条数：{number}，删除间隔：{remove_interval}")
+            lines_to_skip = (len(danmaku_lines) - number) // number
+            kept_lines = [line for i, line in enumerate(lines) if i % lines_to_skip == 0]
+            with open(path, "w") as f:
+                for line in header_lines + kept_lines:
+                    f.write(line)
         except Exception:
             _LOGGER.error(f"更改弹幕条数失败，开始恢复原弹幕文件")
             tracebacklog = traceback.format_exc()
@@ -719,7 +720,7 @@ class ListenUploadVideo:
         官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
         so bilibili fuck you!
         """
-        _LOGGER.info(f"开始查询用户 {self.uid} 是否上传新视频")
+        # _LOGGER.info(f"开始查询用户 {self.uid} 是否上传新视频")
         if not os.path.exists(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
