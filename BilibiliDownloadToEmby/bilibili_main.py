@@ -724,7 +724,7 @@ class ListenUploadVideo:
         # _LOGGER.info(f"开始查询用户 {self.uid} 是否上传新视频")
         if not os.path.exists(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
-        elif self.verify_json(f"{local_path}/listen_up.json") is False:
+        elif not await self.verify_json(f"{local_path}/listen_up.json"):
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
         if not await self.query_data(uid=self.uid):
