@@ -18,7 +18,9 @@ media_path = bilibili_main.Utils.get_media_path(False)
 _LOGGER = logging.getLogger(__name__)
 sched = BlockingScheduler()
 server = mbot_api
-num = 0
+cookie_check_num = 0
+follow_check_parts = 0
+follow_check_now_parts = 0
 
 
 def get_config(follow_uid, if_get_follow_list):
@@ -29,6 +31,7 @@ def get_config(follow_uid, if_get_follow_list):
         follow_uid_list += follow_uid
     else:
         follow_uid_list = follow_uid
+    get_limit_parts(follow_uid_list)
 
 
 def get_user_follow_list():
@@ -63,7 +66,7 @@ def retry_download():
     asyncio.run(bilibili_main.retry_video())
 
 
-@plugin.task("check_up_update", "查询追更的up主是否更新", cron_expression="*/5 * * * *")
+@plugin.task("check_up_update", "查询追更的up主是否更新", cron_expression="*/2 * * * *")
 def check_update():
     # 检查视频更新
     if not global_value.get_value("cookie_is_valid"):
@@ -75,7 +78,9 @@ def check_update():
     tasks = []
     if not follow_uid_list:
         return
-    for i in follow_uid_list:
+    follow_list = check_up_update_limit()
+    _LOGGER.info(f"开始查询{follow_list}是否更新")
+    for i in follow_list:
         update = bilibili_main.ListenUploadVideo(
             i, if_people_path, media_path, people_path
         )
@@ -83,11 +88,51 @@ def check_update():
     loop.run_until_complete(asyncio.wait(tasks))
 
 
+def check_up_update_limit():
+    """对检查更新的up主进行分组，每组20个，防止api限流"""
+    global follow_check_parts, follow_check_now_parts
+    if len(follow_uid_list) <= 20:
+        # 如果关注列表小于20个，直接返回，跳过分组
+        _LOGGER.info("关注列表小于20个，跳过分组，直接返回")
+        return follow_uid_list
+    if follow_check_now_parts < follow_check_parts:
+        _LOGGER.info(
+            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}")
+        follow_check_now_parts += 1
+        return follow_uid_list[(follow_check_now_parts - 1) * 20: follow_check_now_parts * 20]
+    else:
+        _LOGGER.info("检查更新的up主已经全部检查完毕，重新开始新一轮检查")
+        _LOGGER.info(
+            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}")
+        follow_check_now_parts = 0
+        follow_check_now_parts += 1
+        return follow_uid_list[(follow_check_now_parts - 1) * 20: follow_check_now_parts * 20]
+
+
+def get_limit_parts(follow_uid_list):
+    global follow_check_parts
+    follow_check_parts = len(follow_uid_list) // 20 + 1
+    _LOGGER.info(f"关注列表分为{follow_check_parts}组，每组20个")
+    return True
+
+
+# 写一个测试函数，验证check_up_update_limit函数的分组是否正确
+# def checkk_up_update_limit():
+#     follow = ["123", "456", "789", "101112", "131415", "161718", "192021", "222324", "252627", "282930", "313233", "343536", "373839", "404142", "434445", "464748", "495051", "525354", "555657", "585960", "616263", "646566", "676869", "707172", "737475", "767778", "798081", "828384", "858687", "888990", "919293", "949596", "979899", "1010101", "1040104", "1070107", "1100110", "1130113", "116011", "1190119", "1220122", "1250125", "1280128", "1310131", "1340134", "1370137", "1400140", "1430143", "1460146", "1490149", "1520152", "1550155", "1580158", "1610161", "1640164", "1670167", "1700170", "1730173", "1760176", "1790179", "1820182", "1850185", "1880188", "1910191", "1940194", "1970197", "2000200", "2030203", "2060206", "2090209", "2120212", "2150215", "2180218", "2210221", "2240224", "2270227", "2300230", "2330233", "2360236", "2390239", "2420242", "2450245", "2480248", "2510251", "2540254", "2570257", "2600260", "2630263", "2660266", "2690269", "2720272", "2750275", "2780278", "2810281", "2840284", "2870287", "2900290", "2930293", "2960296", "2990299", "3020302", "3050305", "3080308", "3110311", "3140314", "3170317", "3200320", "3230323", "3260326", "3290329", "3320332", "3350335", "3380338", "3410341", "3440344", "3470347", "3500350", "3530353", "3560356", "3590359", "3620362", "3650365", "3680368", "3710371", "3740374", "3770377", "3800380", "3830383", "3860386", "3890389", "3920392", "3950395", "3980398", "4010401", "4040404", "4070407", "4100410", "4130413", "4160416"]
+#     print(len(follow))
+#     get_limit_parts(follow)
+#     print(follow_check_parts)
+#     for i in range(follow_check_parts + 20):
+#         print("follow_check_now_parts: "+ str(follow_check_now_parts))
+#         follow_list = check_up_update_limit(follow)
+#         print(follow_list)
+
+
 @plugin.task("check_cookie_is_valid", "检查cookie是否过期", cron_expression="*/2 * * * *")
 def check_cookie_is_valid():
     # 检查cookie是否过期
     # _LOGGER.info("开始运行定时任务：检查cookie是否过期")
-    global num
+    global cookie_check_num
     cookies = global_value.get_value("credential")
     # is_ = global_value.get_value("is_cookie_valid")
     # _LOGGER.info(f"cookie是否有效：{is_}，cookie:{cookies}")
@@ -111,10 +156,10 @@ def check_cookie_is_valid():
         _LOGGER.info("cookie已过期或没登录，请重新登录")
         global_value.set_value("is_cookie_valid", False)
         # _LOGGER.info("扫描次数："+str(num))
-        if num == 30:
+        if cookie_check_num == 30:
             server.notify.send_text_message(
                 title="b站cookie过期，请重新扫码登录", to_uid=1, body="登录失效，请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆"
             )
-            num = 0
+            cookie_check_num = 0
         else:
-            num += 1
+            cookie_check_num += 1

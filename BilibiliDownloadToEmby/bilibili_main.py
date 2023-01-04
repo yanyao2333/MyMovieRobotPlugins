@@ -45,6 +45,8 @@ _LOGGER.info(f"cookie：{credential}")
 up_data = {}
 danmaku_config = global_value.get_value("danmaku_config")
 
+class DownloadError(Exception):
+    pass
 
 def get_config():
     global credential
@@ -110,22 +112,16 @@ class BilibiliProcess:
             if res:
                 _LOGGER.info(f"{self.title} 视频下载完成")
             else:
-                Utils.write_error_video(self.video_info)
-                await Utils.delete_video_folder(self.video_info)
-                return None
+                raise DownloadError(f"{self.title} 视频下载失败")
             path = f"{self.video_path}/audio_temp.m4s"
             res, a_size = await DownloadFunc(audio_url, path).download_with_resume()
             if res:
                 _LOGGER.info(f"{self.title} 音频下载完成")
             else:
-                Utils.write_error_video(self.video_info)
-                await Utils.delete_video_folder(self.video_info)
-                return None
+                raise DownloadError(f"{self.title} 视频下载失败")
             if v_size == 0 or a_size == 0:
-                _LOGGER.error(f"{self.title} 视频或音频大小为0kb，可能是资源失效，不会再次重试")
-                Utils.write_error_video(self.video_info)
-                await Utils.delete_video_folder(self.video_info)
-                return None
+                _LOGGER.error(f"{self.title} 视频或音频大小为0kb，热门资源都会有这种问题，稍后重试")
+                raise DownloadError(f"{self.title} 视频下载失败")
             in_video = ffmpeg.input(f"{self.video_path}/video_temp.m4s")
             in_audio = ffmpeg.input(f"{self.video_path}/audio_temp.m4s")
             ffmpeg.output(
@@ -140,6 +136,12 @@ class BilibiliProcess:
             _LOGGER.info(
                 f"视频音频下载完成，已混流为mp4文件，文件名： 「{self.video_info['title']} ({raw_year}).mp4」"
             )
+        except ffmpeg._run.Error as e:
+            _LOGGER.error(f"调用ffmpeg混流mp4失败，程序会稍后重试下载： {e}")
+            Utils.write_error_video(self.video_info)
+            await Utils.delete_video_folder(self.video_info)
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(f"报错原因：{tracebacklog}")
         except Exception as e:
             _LOGGER.error(f"{self.title} 下载失败，已记录视频id，稍后重试")
             Utils.write_error_video(self.video_info)
@@ -583,15 +585,30 @@ class Utils:
         else:
             return False, None
 
+    # TODO: 在插件配置中可以指定媒体库路径
     @staticmethod
     def get_media_path(type):
         """
-        获取mr媒体路径 逻辑：优先选择最靠前的movie/tv类型的路径，如果都没有就返回第一个路径， 反正是下载到bilibili文件夹下，也不会乱
+        获取mr媒体路径 逻辑：优先选择mr挂载路径中含有"bilibili"关键字的路径，如果是分p视频，就在该路径下创建“pages_video”文件夹。如果没有就选择最靠前的movie/tv类型的路径（根据是否为分p视频选择），如果都没有就返回第一个路径，。反正是下载到bilibili文件夹下，也不会乱
 
         :param type: 视频是否分P，如果分P则为True，否则为False
         """
         api = mr_api.MediaPath(server.session)
         resp = api.config()
+        for i in resp.get("paths"):
+            if i.get("target_dir") == "bilibili":
+                dir = i.get("target_dir")
+                if dir[-1] == "/":
+                    dir = dir[:-1]
+                if type:
+                    if os.path.exists(dir + "/pages_video"):
+                        return f"{dir}/pages_video"
+                    else:
+                        _LOGGER.info("未找到pages_video文件夹，将创建，请将该文件夹添加到emby媒体库，媒体格式选择为剧集")
+                        os.makedirs(name=dir + "/pages_video")
+                        return f"{dir}/pages_video"
+                else:
+                    return dir
         for i in resp.get("paths"):
             if i.get("type") == "tv" and type:
                 return i.get("target_dir")
@@ -871,7 +888,7 @@ class Notify:
         server.notify.send_message_by_tmpl(
             title="bilibili追更提醒",
             to_uid=1,
-            message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
+            body=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
         )
 
 
@@ -925,6 +942,7 @@ class DownloadFunc:
         """这个是我瞎写的包含断点续传功能的下载方法"""
         try:
             async with httpx.AsyncClient() as client:
+                # 无需创建
                 _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
                 response = await client.head(self.url, headers=self.HEADERS)
                 file_size = int(response.headers["content-length"])
@@ -940,7 +958,9 @@ class DownloadFunc:
                         file.write(response.content)
                     with open(self.path, "rb") as file:
                         downloaded_size = len(file.read())
+                _LOGGER.info(f"下载完成，文件大小：{downloaded_size}")
                 if downloaded_size == 0:
+                    _LOGGER.error(f"下载的文件大小为0，50秒后重试")
                     return False
             return True, downloaded_size
         except Exception as e:
