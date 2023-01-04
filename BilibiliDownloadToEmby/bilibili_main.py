@@ -715,6 +715,7 @@ class ListenUploadVideo:
         self.media_path = media_path
         self.emby_persons_path = emby_persons_path
 
+    # TODO: 追更列表过多会引发风控，需要进行限流操作
     async def listen_no_pages_video_new(self):
         """
         官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
@@ -722,6 +723,8 @@ class ListenUploadVideo:
         """
         # _LOGGER.info(f"开始查询用户 {self.uid} 是否上传新视频")
         if not os.path.exists(f"{local_path}/listen_up.json"):
+            await self.save_data(f"{local_path}/listen_up.json")
+        elif self.verify_json(f"{local_path}/listen_up.json") is False:
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
         if not await self.query_data(uid=self.uid):
@@ -737,7 +740,7 @@ class ListenUploadVideo:
                 if len(await video.Video(bvid=v["bvid"]).get_pages()) > 1:
                     _LOGGER.info(f"用户{self.uid}发布了分p视频，忽略")
                     await self.modify_data(self.uid, v["created"], "update")
-                    Notify(video_info).send_pages_video_notify(self.uid)
+                    Notify(video_info).send_pages_video_notify()
                     await self.save_data(f"{local_path}/listen_up.json")
                     continue
                 else:
@@ -796,6 +799,15 @@ class ListenUploadVideo:
             content = f.read()
             up_data.update(json.loads(content))
 
+    async def verify_json(self, file_name):
+        with open(file_name, "r") as f:
+            content = f.read()
+            try:
+                json.loads(content)
+                return True
+            except json.decoder.JSONDecodeError:
+                return False
+
 
 class Notify:
     """在下载整理完成时通知用户（走mr渠道） 只推送给第一个用户"""
@@ -848,7 +860,7 @@ class Notify:
         self.send_message_by_templ()
         self.send_sys_message()
 
-    def send_pages_video_notify(self, uid):
+    def send_pages_video_notify(self):
         """发送分p视频通知"""
         _LOGGER.info("开始发送分p视频通知")
         server.notify.send_system_message(

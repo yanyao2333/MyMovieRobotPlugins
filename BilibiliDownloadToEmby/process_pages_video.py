@@ -298,6 +298,7 @@ class ProcessPagesVideo:
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             path = f'{self.video_path}/Season 1/{self.video_info["title"]} S01E{page + 1:02d}.danmakus.ass'
             # 这是我个人比较舒服的弹幕样式，可以自行修改
+            danmaku_config = global_value.get_value("danmaku_config")
             _LOGGER.info(f"弹幕样式：{danmaku_config}")
             await ass.make_ass_file_danmakus_protobuf(
                 video.Video(self.video_id),
