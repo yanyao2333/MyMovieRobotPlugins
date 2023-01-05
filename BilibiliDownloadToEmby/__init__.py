@@ -5,6 +5,8 @@ from . import global_value
 global_value.init()
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.info("bilibili_download_to_emby:该插件处于测试阶段，可能会出现各种问题，如果出现问题请反馈给作者")
+_LOGGER.info("正在检查依赖模块")
 dependent_modules = {
     "bilibili_api": "bilibili-api-python",
     "pydantic": "pydantic",

@@ -93,7 +93,7 @@ class BilibiliProcess:
         v = video.Video(bvid=self.video_id, credential=self.credential)
         try:
             self.video_info = await v.get_info()
-            self.video_info['title'] = self.video_info['title'].replace("/", " ")
+            self.video_info["title"] = self.video_info["title"].replace("/", " ")
             self.title = f"「{self.video_info['title']}」"
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
             self.video_path = f"{local_path}/{self.video_info['title']} ({raw_year})"
@@ -125,9 +125,11 @@ class BilibiliProcess:
                 _LOGGER.info(f"{self.title} 音频下载完成")
             else:
                 raise DownloadError(f"{self.title} 视频下载失败")
-            if v_size == 0 or a_size == 0:
-                _LOGGER.error(f"{self.title} 视频或音频大小为0kb，热门资源都会有这种问题，稍后重试")
-                raise DownloadError(f"{self.title} 视频下载失败")
+            if v_size == 0 or a_size == 0 or v_size == 202 or a_size == 202:
+                _LOGGER.warning(f"{self.title} 下载资源大小不正确，放弃本次下载，稍后重试")
+                await Utils.write_error_video(self.video_info)
+                await Utils.delete_video_folder(self.video_info)
+                return
             in_video = ffmpeg.input(f"{self.video_path}/video_temp.m4s")
             in_audio = ffmpeg.input(f"{self.video_path}/audio_temp.m4s")
             ffmpeg.output(
@@ -144,20 +146,20 @@ class BilibiliProcess:
             )
         except ffmpeg._run.Error as e:
             _LOGGER.error(f"调用ffmpeg混流mp4失败，程序会稍后重试下载： {e}")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
         except Exception as e:
             _LOGGER.error(f"{self.title} 下载失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
     async def download_video_cover(self):
         """下载视频封面"""
-        if Utils.read_error_video(self.video_info):
+        if await Utils.read_error_video(self.video_info):
             return
         _LOGGER.info(f"开始下载 {self.title}封面")
         raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
@@ -166,13 +168,13 @@ class BilibiliProcess:
         if res:
             _LOGGER.info(f"{self.title} 封面下载完成")
         else:
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
 
     async def gen_video_nfo(self):
         """生成视频nfo文件"""
         try:
-            if Utils.read_error_video(self.video_info):
+            if await Utils.read_error_video(self.video_info):
                 return
             _LOGGER.info(f"开始生成 {self.title} 的视频nfo文件")
             video_info = self.video_info
@@ -223,7 +225,7 @@ class BilibiliProcess:
             _LOGGER.info(f"{self.title} 视频nfo文件生成完成")
         except Exception as e:
             _LOGGER.error(f"视频 {self.title} nfo文件生成失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
@@ -231,7 +233,7 @@ class BilibiliProcess:
     async def gen_character_nfo(self):
         """生成up主信息 当前问题：以英文开头的up主生成的nfo无法被emby识别"""
         try:
-            if Utils.read_error_video(self.video_info):
+            if await Utils.read_error_video(self.video_info):
                 return
             _LOGGER.info(f"开始生成 {self.title} 的up主nfo信息")
             video_info = self.video_info
@@ -292,14 +294,14 @@ class BilibiliProcess:
             _LOGGER.info(f"{self.title} 的up主nfo信息生成完成")
         except Exception as e:
             _LOGGER.error(f"{self.title} 的up主nfo信息生成失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
     async def download_character_folder(self):
         """下载up主头像"""
-        if Utils.read_error_video(self.video_info):
+        if await Utils.read_error_video(self.video_info):
             return
         _LOGGER.info("开始下载up主头像")
         video_info = self.video_info
@@ -323,7 +325,7 @@ class BilibiliProcess:
             return
         except Exception:
             _LOGGER.error(f"up主头像下载失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
@@ -331,7 +333,7 @@ class BilibiliProcess:
     async def move_character_folder(self):
         """移动up主信息到emby演员文件夹"""
         try:
-            if Utils.read_error_video(self.video_info):
+            if await Utils.read_error_video(self.video_info):
                 return
             emby_persons_path = self.emby_persons_path
             video_info = self.video_info
@@ -399,7 +401,7 @@ class BilibiliProcess:
             _LOGGER.info("up主头像移动完成")
         except Exception as e:
             _LOGGER.error(f"{self.title} up主头像移动失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
@@ -407,7 +409,7 @@ class BilibiliProcess:
     async def move_video_folder(self):
         """移动视频文件夹到指定媒体库文件夹"""
         try:
-            if Utils.read_error_video(self.video_info):
+            if await Utils.read_error_video(self.video_info):
                 return
             emby_videos_path = self.media_path
             video_info = self.video_info
@@ -435,7 +437,7 @@ class BilibiliProcess:
             _LOGGER.info("视频文件夹移动完成")
         except Exception as e:
             _LOGGER.error(f"视频 {self.title} 文件夹移动失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
@@ -443,7 +445,7 @@ class BilibiliProcess:
     async def downlod_ass_danmakus(self):
         """下载弹幕"""
         try:
-            if Utils.read_error_video(self.video_info):
+            if await Utils.read_error_video(self.video_info):
                 return
             _LOGGER.info(f"开始下载视频 {self.title} 弹幕")
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
@@ -470,7 +472,7 @@ class BilibiliProcess:
             _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
         except Exception:
             _LOGGER.error(f"视频 {self.title} 弹幕下载失败，已记录视频id，稍后重试")
-            Utils.write_error_video(self.video_info)
+            await Utils.write_error_video(self.video_info)
             await Utils.delete_video_folder(self.video_info)
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"报错原因：{tracebacklog}")
@@ -506,7 +508,7 @@ class BilibiliProcess:
             _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确")
             _LOGGER.error(tracebacklog)
             return True
-        if Utils.read_error_video(self.video_info):
+        if await Utils.read_error_video(self.video_info):
             _LOGGER.info("该视频在失败重试列表，不再下载，等待自动重试")
             return True
         await self.download_video()
@@ -518,7 +520,7 @@ class BilibiliProcess:
             await self.download_character_folder()
             await self.move_character_folder()
         await self.move_video_folder()
-        if Utils.read_error_video(self.video_info):
+        if await Utils.read_error_video(self.video_info):
             return True
         _LOGGER.info(f"视频 {self.title} 下载刮削完成，请刷新emby媒体库")
         Notify(self.video_info).send_all_way()
@@ -542,13 +544,13 @@ class Utils:
         sys.stdout.flush()
 
     @staticmethod
-    def write_error_video(video_info, page=0):
+    async def write_error_video(video_info, page=0):
         """记录下载失败的视频"""
         with open(f"{local_path}/error_video.txt", "a") as f:
             f.write(f"{video_info['bvid']} P{str(page)}\n")
 
     @staticmethod
-    def read_error_video(video_info, page=0):
+    async def read_error_video(video_info, page=0):
         """读取下载失败的视频"""
         with open(f"{local_path}/error_video.txt", "r") as f:
             error_video = f.readlines()
@@ -562,7 +564,7 @@ class Utils:
                 return False
 
     @staticmethod
-    def remove_error_video(video_info):
+    async def remove_error_video(video_info):
         """删除下载失败的视频记录"""
         with open(f"{local_path}/error_video.txt", "r") as f:
             lines = f.readlines()
@@ -572,7 +574,7 @@ class Utils:
                     f_w.write(line)
 
     @staticmethod
-    def get_error_video_list():
+    async def get_error_video_list():
         """获取下载失败的视频列表"""
         with open(f"{local_path}/error_video.txt", "r") as f:
             lines = f.readlines()
@@ -661,7 +663,7 @@ class Utils:
             _LOGGER.error(f"报错原因：{tracebacklog}")
 
     @staticmethod
-    def find_and_remove(filename, target_str):
+    async def find_and_remove(filename, target_str):
         with open(filename, "r") as f:
             lines = f.readlines()
 
@@ -688,7 +690,9 @@ class Utils:
             header_lines = lines[:17]
             # _LOGGER.info(f"弹幕条数：{len(danmaku_lines)}，保留弹幕条数：{number}，删除间隔：{remove_interval}")
             lines_to_skip = (len(danmaku_lines) - number) // number
-            kept_lines = [line for i, line in enumerate(lines) if i % lines_to_skip == 0]
+            kept_lines = [
+                line for i, line in enumerate(lines) if i % lines_to_skip == 0
+            ]
             with open(path, "w") as f:
                 for line in header_lines + kept_lines:
                     f.write(line)
@@ -707,14 +711,14 @@ async def retry_video():
     if not os.path.exists(f"{local_path}/error_video.txt"):
         with open(f"{local_path}/error_video.txt", "w") as f:
             pass
-    error_video_list = Utils.get_error_video_list()
+    error_video_list = await Utils.get_error_video_list()
     error_video = error_video_list[0] if error_video_list else None
     bv = error_video.split(" ")[0] if error_video else None
     page = error_video.split(" ")[1][1:] if error_video else None
     if error_video is None:
         return
     elif len(bv) != 12 and bv[:2] != "BV":
-        Utils.find_and_remove(f"{local_path}/error_video.txt", error_video)
+        await Utils.find_and_remove(f"{local_path}/error_video.txt", error_video)
         return
     _LOGGER.info(f"开始重试下载失败的视频 {bv}")
     if_people_path, people_path = Utils.if_get_character()
@@ -741,7 +745,7 @@ async def retry_video():
     media_path = Utils.get_media_path(False)
     if media_path is False:
         return
-    Utils.remove_error_video({"bvid": error_video})
+    await Utils.remove_error_video({"bvid": error_video})
     _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
     await BilibiliProcess(
         bv,
@@ -775,8 +779,12 @@ class ListenUploadVideo:
             await self.save_data(f"{local_path}/listen_up.json")
         await self.load_data(f"{local_path}/listen_up.json")
         if not await self.query_data(uid=self.uid):
-            await self.modify_data(uid=self.uid, time=int(datetime.datetime.now().timestamp()), mode="add")
-        all_video = await user.User(credential=credential, uid=self.uid).get_videos(ps=50)
+            await self.modify_data(
+                uid=self.uid, time=int(datetime.datetime.now().timestamp()), mode="add"
+            )
+        all_video = await user.User(credential=credential, uid=self.uid).get_videos(
+            ps=50
+        )
         video_list = all_video["list"]["vlist"]
         for v in reversed(video_list):
             if await self.query_data(self.uid) is not None and self.compare_time(
@@ -806,9 +814,7 @@ class ListenUploadVideo:
                 await self.modify_data(self.uid, v["created"], "add")
                 await self.save_data(f"{local_path}/listen_up.json")
                 continue
-            elif not self.compare_time(
-                    v["created"], await self.query_data(self.uid)
-            ):
+            elif not self.compare_time(v["created"], await self.query_data(self.uid)):
                 await self.save_data(f"{local_path}/listen_up.json")
                 continue
 
@@ -945,7 +951,7 @@ class DownloadFunc:
     )
     async def download_cover(self):
         """
-        下载封面用，我不知道怎么回事但是使用下面那个方法下载的封面全是0kb的，就先保留这个
+        下载封面
         """
         try:
             _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
@@ -955,7 +961,7 @@ class DownloadFunc:
                         async for data in response.aiter_bytes():
                             f.write(data)
         except Exception as e:
-            _LOGGER.error(f"下载失败，50秒后重试")
+            _LOGGER.error(f"下载失败，删除已下载文件，50秒后重试")
             tracebacklog = traceback.format_exc()
             _LOGGER.error(tracebacklog)
             return False
@@ -973,7 +979,7 @@ class DownloadFunc:
         try:
             async with httpx.AsyncClient() as client:
                 # 无需创建
-                _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
+                _LOGGER.info(f"开始使用断点续传下载url：{self.url}，保存路径：{self.path}")
                 response = await client.head(self.url, headers=self.HEADERS)
                 file_size = int(response.headers["content-length"])
                 try:
@@ -984,6 +990,13 @@ class DownloadFunc:
                 if downloaded_size < file_size:
                     self.HEADERS["range"] = f"bytes={file_size - downloaded_size}"
                     response = await client.get(self.url, headers=self.HEADERS)
+                    if response.status_code == 416:
+                        _LOGGER.info("不允许使用Range请求头或者Range请求头范围错误，采用普通下载")
+                        res, size = await self.normal_download()
+                        if res is False:
+                            return False, size
+                        else:
+                            return True, size
                     with open(self.path, "ab") as file:
                         file.write(response.content)
                     with open(self.path, "rb") as file:
@@ -993,11 +1006,38 @@ class DownloadFunc:
                     _LOGGER.error(f"下载的文件大小为0，50秒后重试")
                     return False
             return True, downloaded_size
-        except Exception as e:
+        except:
             _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
             tracebacklog = traceback.format_exc()
             _LOGGER.error(tracebacklog)
             return False
+
+    @tenacity.retry(
+        stop=tenacity.stop_after_attempt(6),
+        wait=tenacity.wait_fixed(50),
+        retry=tenacity.retry_if_result(lambda result: result is False),
+        reraise=True,
+    )
+    async def normal_download(self):
+        """普通下载"""
+        try:
+            _LOGGER.info(f"开始普通下载url：{self.url}，保存路径：{self.path}")
+            async with httpx.AsyncClient(headers=self.HEADERS) as sess:
+                resp = await sess.get(self.url)
+                length = resp.headers.get("content-length")
+                with open(self.path, "wb") as f:
+                    f.write(resp.content)
+                    size = len(resp.content)
+                _LOGGER.info(f"下载完成，文件大小：{size}")
+        except:
+            _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
+            if os.path.exists(self.path):
+                os.remove(self.path)
+            tracebacklog = traceback.format_exc()
+            _LOGGER.error(tracebacklog)
+            return False
+        else:
+            return True, size
 
 
 if __name__ == "__main__":

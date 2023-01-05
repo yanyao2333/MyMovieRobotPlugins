@@ -37,7 +37,10 @@ def get_user_follow_list():
     """获取用户关注列表"""
     _LOGGER.info("正在获取用户关注列表")
     # _LOGGER.info(str(global_value.get_value("cookie_is_valid"))+ "           "+str(global_value.get_value("credential")))
-    if global_value.get_value("cookie_is_valid") and global_value.get_value("credential") is not None:
+    if (
+            global_value.get_value("cookie_is_valid")
+            and global_value.get_value("credential") is not None
+    ):
         cre = global_value.get_value("credential")
         uid = cre.dedeuserid
         follow_list = sync(user.User(credential=cre, uid=uid).get_followings(cre, 1))
@@ -45,7 +48,9 @@ def get_user_follow_list():
         refresh_num = total_follow // 100 + 1
         follow_list = []
         for i in range(1, refresh_num + 1):
-            follow_list.extend(sync(user.User(credential=cre, uid=uid).get_followings(pn=i))["list"])
+            follow_list.extend(
+                sync(user.User(credential=cre, uid=uid).get_followings(pn=i))["list"]
+            )
         for i in follow_list:
             follow_uid_list.append(str(i["mid"]))
         _LOGGER.info(f"获取到关注列表: {follow_uid_list}")
@@ -100,16 +105,22 @@ def check_up_update_limit():
         return follow_uid_list
     if follow_check_now_parts < follow_check_parts:
         _LOGGER.info(
-            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}")
+            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}"
+        )
         follow_check_now_parts += 1
-        return follow_uid_list[(follow_check_now_parts - 1) * 20: follow_check_now_parts * 20]
+        return follow_uid_list[
+               (follow_check_now_parts - 1) * 20: follow_check_now_parts * 20
+               ]
     else:
         _LOGGER.info("检查更新的up主已经全部检查完毕，重新开始新一轮检查")
         _LOGGER.info(
-            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}")
+            f"开始检查第{follow_check_now_parts + 1}组up主是否更新，共{follow_check_parts}组，该组up主列表：{follow_uid_list[follow_check_now_parts * 20:follow_check_now_parts * 20 + 20]}"
+        )
         follow_check_now_parts = 0
         follow_check_now_parts += 1
-        return follow_uid_list[(follow_check_now_parts - 1) * 20: follow_check_now_parts * 20]
+        return follow_uid_list[
+               (follow_check_now_parts - 1) * 20: follow_check_now_parts * 20
+               ]
 
 
 def get_limit_parts(follow_uid_list):
@@ -160,7 +171,9 @@ def check_cookie_is_valid():
         # _LOGGER.info("扫描次数："+str(num))
         if cookie_check_num == 30:
             server.notify.send_text_message(
-                title="b站cookie过期，请重新扫码登录", to_uid=1, body="登录失效，请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆"
+                title="b站cookie过期，请重新扫码登录",
+                to_uid=1,
+                body="登录失效，请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆",
             )
             cookie_check_num = 0
         else:

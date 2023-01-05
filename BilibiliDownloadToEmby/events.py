@@ -23,13 +23,14 @@ server = mbot_api
 
 class danmaku_config_model(BaseModel):
     """弹幕配置"""
+
     font_size: Optional[float] = 25
     alpha: Optional[float] = 1
     fly_time: Optional[float] = 7
     static_time: Optional[float] = 5
     number: Optional[int]
 
-    @validator('alpha')
+    @validator("alpha")
     def danmaku_alpha_validator(cls, v):
         if 1 < v <= 100:
             v = v / 100
@@ -37,7 +38,7 @@ class danmaku_config_model(BaseModel):
             v = v
         else:
             v = 1
-            _LOGGER.warning('弹幕透明度设置错误，已自动设置为1')
+            _LOGGER.warning("弹幕透明度设置错误，已自动设置为1")
         return v
 
 
@@ -81,7 +82,9 @@ def _(plugin: PluginMeta, config: Dict):
         # t1 = threading.Thread(target=login.by_scan_qrcode, name="bilibili_login")
         # t1.start()
         global_value.set_value("cookie_is_valid", False)
-        server.notify.send_text_message(title="b站登录成功", to_uid=1, body="请到mr插件快捷功能页点击登录b站")
+        server.notify.send_text_message(
+            title="b站登录成功", to_uid=1, body="请到mr插件快捷功能页点击登录b站"
+        )
     follow_uid_list = (
         config.get("follow_uid_list").split(",")
         if config.get("follow_uid_list")
@@ -122,7 +125,9 @@ def _(config: Dict):
         # t1 = threading.Thread(target=login.by_scan_qrcode, name="bilibili_login")
         # t1.start()
         global_value.set_value("cookie_is_valid", False)
-        server.notify.send_text_message(title="b站登录成功", to_uid=1, body="登录过期，请到mr插件快捷功能页点击登录b站")
+        server.notify.send_text_message(
+            title="b站登录成功", to_uid=1, body="登录过期，请到mr插件快捷功能页点击登录b站"
+        )
     follow_uid_list = (
         config.get("follow_uid_list").split(",")
         if config.get("follow_uid_list")

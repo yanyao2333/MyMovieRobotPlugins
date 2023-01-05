@@ -48,7 +48,7 @@ class ProcessPagesVideo:
         try:
             self.v = video.Video(bvid=self.video_id, credential=self.credential)
             self.video_info = await self.v.get_info()
-            self.video_info['title'] = self.video_info['title'].replace("/", " ")
+            self.video_info["title"] = self.video_info["title"].replace("/", " ")
             self.pages_num = len(await self.v.get_pages())
             self.raw_year = time.strftime(
                 "%Y", time.localtime(self.video_info["pubdate"])
@@ -70,7 +70,7 @@ class ProcessPagesVideo:
             url = await self.v.get_download_url(page_index=page)
             video_url = url["dash"]["video"][0]["baseUrl"]
             audio_url = url["dash"]["audio"][0]["baseUrl"]
-            res = await bilibili_main.DownloadFunc(
+            res, v_size = await bilibili_main.DownloadFunc(
                 video_url, path
             ).download_with_resume()
             if res:
@@ -82,7 +82,7 @@ class ProcessPagesVideo:
                 )
                 return None
             path = f"{self.video_path}/Season 1/audio_temp_{page + 1}.m4s"
-            res = await bilibili_main.DownloadFunc(
+            res, a_size = await bilibili_main.DownloadFunc(
                 audio_url, path
             ).download_with_resume()
             if res:
@@ -93,6 +93,11 @@ class ProcessPagesVideo:
                     self.video_info, target_str=f"S01E{page + 1:02d}"
                 )
                 return None
+            if v_size == 0 or a_size == 0 or v_size == 202 or a_size == 202:
+                _LOGGER.warning(f"{self.title} 下载资源大小不正确，放弃本次下载，稍后重试")
+                bilibili_main.Utils.write_error_video(self.video_info)
+                await bilibili_main.Utils.delete_video_folder(self.video_info, target_str=f"S01E{page + 1:02d}")
+                return
             in_video = ffmpeg.input(
                 f"{self.video_path}/Season 1/video_temp_{page + 1}.m4s"
             )
@@ -314,7 +319,9 @@ class ProcessPagesVideo:
                 return
             else:
                 _LOGGER.info(f"开始随机删除弹幕到 {danmaku_config['number']} 条")
-                await bilibili_main.Utils.remove_some_danmaku(path, danmaku_config["number"])
+                await bilibili_main.Utils.remove_some_danmaku(
+                    path, danmaku_config["number"]
+                )
         except exceptions.DanmakuClosedException:
             _LOGGER.warning(f"视频 {self.title} 弹幕下载失败，弹幕已关闭")
         except Exception:
