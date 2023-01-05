@@ -57,6 +57,8 @@ def download(
                     media_path = bilibili_main.Utils.get_media_path(True)
                 else:
                     media_path = bilibili_main.Utils.get_media_path(False)
+                if media_path is False:
+                    return PluginCommandResponse(False, "请先设置媒体库路径！")
                 tasks.append(
                     bilibili_main.BilibiliProcess(
                         i,
@@ -72,6 +74,8 @@ def download(
                 media_path = bilibili_main.Utils.get_media_path(True)
             else:
                 media_path = bilibili_main.Utils.get_media_path(False)
+            if media_path is False:
+                return PluginCommandResponse(False, "请先设置媒体库路径！")
             tasks.append(
                 bilibili_main.BilibiliProcess(
                     video_id,

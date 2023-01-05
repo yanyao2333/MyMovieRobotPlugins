@@ -53,6 +53,7 @@ def pad_image(image, target_size):
 @tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_fixed(5))
 def send_qrcode(img):
     """发送二维码(走mr推送渠道)"""
+    # TODO: 调用微信官方api上传图片
     files = {"image": ("qrcode.png", open(img, "rb"), "image/png")}
     res = requests.post(url="https://www.imgtp.com/api/upload", files=files)
     res = res.json()

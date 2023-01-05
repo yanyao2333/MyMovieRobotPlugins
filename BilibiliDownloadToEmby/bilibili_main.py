@@ -45,8 +45,14 @@ _LOGGER.info(f"cookie：{credential}")
 up_data = {}
 danmaku_config = global_value.get_value("danmaku_config")
 
+
 class DownloadError(Exception):
     pass
+
+
+class VideoPathNotSet(Exception):
+    pass
+
 
 def get_config():
     global credential
@@ -589,32 +595,52 @@ class Utils:
     @staticmethod
     def get_media_path(type):
         """
-        获取mr媒体路径 逻辑：优先选择mr挂载路径中含有"bilibili"关键字的路径，如果是分p视频，就在该路径下创建“pages_video”文件夹。如果没有就选择最靠前的movie/tv类型的路径（根据是否为分p视频选择），如果都没有就返回第一个路径，。反正是下载到bilibili文件夹下，也不会乱
+        现在采用纯用户输入的方式
 
         :param type: 视频是否分P，如果分P则为True，否则为False
         """
-        api = mr_api.MediaPath(server.session)
-        resp = api.config()
-        for i in resp.get("paths"):
-            if i.get("target_dir") == "bilibili":
-                dir = i.get("target_dir")
-                if dir[-1] == "/":
-                    dir = dir[:-1]
-                if type:
-                    if os.path.exists(dir + "/pages_video"):
-                        return f"{dir}/pages_video"
-                    else:
-                        _LOGGER.info("未找到pages_video文件夹，将创建，请将该文件夹添加到emby媒体库，媒体格式选择为剧集")
-                        os.makedirs(name=dir + "/pages_video")
-                        return f"{dir}/pages_video"
-                else:
-                    return dir
-        for i in resp.get("paths"):
-            if i.get("type") == "tv" and type:
-                return i.get("target_dir")
-            elif i.get("type") == "movie" and not type:
-                return i.get("target_dir")
-        return resp.get("paths")[0].get("target_dir")
+        # api = mr_api.MediaPath(server.session)
+        # resp = api.config()
+        # for i in resp.get("paths"):
+        #     if i.get("target_dir") == "bilibili":
+        #         dir = i.get("target_dir")
+        #         if dir[-1] == "/":
+        #             dir = dir[:-1]
+        #         if type:
+        #             if os.path.exists(dir + "/pages_video"):
+        #                 return f"{dir}/pages_video"
+        #             else:
+        #                 _LOGGER.info("未找到pages_video文件夹，将创建，请将该文件夹添加到emby媒体库，媒体格式选择为剧集")
+        #                 os.makedirs(name=dir + "/pages_video")
+        #                 return f"{dir}/pages_video"
+        #         else:
+        #             return dir
+        # for i in resp.get("paths"):
+        #     if i.get("type") == "tv" and type:
+        #         return i.get("target_dir")
+        #     elif i.get("type") == "movie" and not type:
+        #         return i.get("target_dir")
+        video_dir = global_value.get_value("video_dir")
+        part_video_dir = global_value.get_value("part_video_dir")
+        if not video_dir:
+            _LOGGER.error("未设置视频文件夹路径，请在插件配置中设置，已停止后续下载流程")
+            return False
+        if not part_video_dir:
+            _LOGGER.info("未设置分p视频路径，将使用普通路径")
+            part_video_dir = video_dir
+        if os.path.exists(video_dir) and os.path.exists(part_video_dir):
+            if type:
+                return part_video_dir
+            else:
+                return video_dir
+        else:
+            _LOGGER.info("未找到bilibili文件夹，开始创建")
+            os.makedirs(name=video_dir)
+            os.makedirs(name=part_video_dir)
+            if type:
+                return part_video_dir
+            else:
+                return video_dir
 
     @staticmethod
     async def delete_video_folder(video_info, target_str=None):
@@ -697,6 +723,8 @@ async def retry_video():
     if len(await v.get_pages()) != 1:
         _LOGGER.info("进入多p视频单集重试模式")
         media_path = Utils.get_media_path(True)
+        if media_path is False:
+            return
         process = process_pages_video.ProcessPagesVideo(
             media_path=media_path,
             if_get_character=if_people_path,
@@ -711,6 +739,8 @@ async def retry_video():
     # else:
     #     type = False
     media_path = Utils.get_media_path(False)
+    if media_path is False:
+        return
     Utils.remove_error_video({"bvid": error_video})
     _LOGGER.info(f"重试下载失败的视频 {error_video} 任务已提交")
     await BilibiliProcess(

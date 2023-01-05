@@ -87,8 +87,10 @@ def _(plugin: PluginMeta, config: Dict):
         if config.get("follow_uid_list")
         else []
     )
-    _LOGGER.info(f"插件加载成功。")
     cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
+    global_value.set_value("video_dir", config.get("video_dir"))
+    global_value.set_value("part_video_dir", config.get("part_video_dir"))
+    _LOGGER.info(f"插件加载成功。")
 
 
 @plugin.config_changed
@@ -127,5 +129,7 @@ def _(config: Dict):
         else []
     )
     global_value.set_value("danmaku_config", get_danmaku_config(config))
-    _LOGGER.info(f"插件配置更新。")
+    global_value.set_value("video_dir", config.get("video_dir"))
+    global_value.set_value("part_video_dir", config.get("part_video_dir"))
     cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
+    _LOGGER.info(f"插件配置更新。")

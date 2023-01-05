@@ -14,6 +14,20 @@
       "defaultValue": ""
     },
     {
+      "fieldName": "video_dir",
+      "fieldType": "String",
+      "label": "视频下载位置",
+      "helperText": "请填写一个完整路径，如：/home/username/video（确保该目录是在mr里挂载过的），视频会以电影格式命名，并保存到该目录下。插件会自动在该路径下新建“bilibili”文件夹存放视频，这不是bug，这是feature：）",
+      "defaultValue": ""
+    },
+    {
+      "fieldName": "part_video_dir",
+      "fieldType": "String",
+      "label": "分P视频下载位置",
+      "helperText": "如果你有下载分P视频的需求，请填写一个完整路径，如：/home/username/video（确保该目录是在mr里挂载过的），分P视频会以剧集格式命名并保存到该目录。插件会自动在该路径下新建“bilibili”文件夹存放视频，这不是bug，这是feature：）",
+      "defaultValue": ""
+    },
+    {
       "fieldName": "if_get_follow_list",
       "fieldType": "Bool",
       "label": "是否获取登录账号的关注列表作为追更up列表（不会覆盖上方填写的内容，只是叠加）",
