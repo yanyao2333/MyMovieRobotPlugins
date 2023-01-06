@@ -921,10 +921,13 @@ class Notify:
             to_uid=1,
             message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
         )
+        link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
+        poster_url = self.video_info["pic"]
         server.notify.send_message_by_tmpl(
             title="bilibili追更提醒",
             to_uid=1,
             body=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
+            context={"link_url": link_url, "pic_url": poster_url},
         )
 
 
@@ -957,11 +960,15 @@ class DownloadFunc:
             _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
             async with httpx.AsyncClient(headers=self.HEADERS) as client:
                 async with client.stream("GET", self.url) as response:
+                    _LOGGER.info(f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}")
                     with open(self.path, "wb") as f:
                         async for data in response.aiter_bytes():
                             f.write(data)
+        except FileNotFoundError:
+            _LOGGER.error(f"文件路径不存在：{self.path}，可能是被偷家了，终止本次处理，等待重试")
+            return None
         except Exception as e:
-            _LOGGER.error(f"下载失败，删除已下载文件，50秒后重试")
+            _LOGGER.error(f"下载失败，50秒后重试")
             tracebacklog = traceback.format_exc()
             _LOGGER.error(tracebacklog)
             return False
@@ -990,8 +997,9 @@ class DownloadFunc:
                 if downloaded_size < file_size:
                     self.HEADERS["range"] = f"bytes={file_size - downloaded_size}"
                     response = await client.get(self.url, headers=self.HEADERS)
+                    _LOGGER.info(f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}")
                     if response.status_code == 416:
-                        _LOGGER.info("不允许使用Range请求头或者Range请求头范围错误，采用普通下载")
+                        _LOGGER.info("不允许使用Range请求头或者Range请求头范围错误，回退到普通下载")
                         res, size = await self.normal_download()
                         if res is False:
                             return False, size
@@ -1023,7 +1031,11 @@ class DownloadFunc:
         try:
             _LOGGER.info(f"开始普通下载url：{self.url}，保存路径：{self.path}")
             async with httpx.AsyncClient(headers=self.HEADERS) as sess:
+                # 删除range请求头
+                if "range" in sess.headers:
+                    del sess.headers["range"]
                 resp = await sess.get(self.url)
+                _LOGGER.info(f"本次请求请求头：{resp.request.headers}，状态码：{resp.status_code}")
                 length = resp.headers.get("content-length")
                 with open(self.path, "wb") as f:
                     f.write(resp.content)
