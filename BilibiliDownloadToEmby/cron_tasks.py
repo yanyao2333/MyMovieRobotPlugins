@@ -43,9 +43,9 @@ def get_user_follow_list():
     ):
         cre = global_value.get_value("credential")
         uid = cre.dedeuserid
-        follow_list = sync(user.User(credential=cre, uid=uid).get_followings(cre, 1))
+        follow_list = sync(user.User(credential=cre, uid=uid).get_followings())
         total_follow = follow_list["total"]
-        refresh_num = total_follow // 100 + 1
+        refresh_num = total_follow // 50 + 1
         follow_list = []
         for i in range(1, refresh_num + 1):
             follow_list.extend(
