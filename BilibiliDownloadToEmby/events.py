@@ -90,7 +90,12 @@ def _(plugin: PluginMeta, config: Dict):
         if config.get("follow_uid_list")
         else []
     )
-    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
+    ignore_uid_list = (
+        config.get("ignore_uid_list").split(",")
+        if config.get("ignore_uid_list")
+        else []
+    )
+    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list)
     global_value.set_value("video_dir", config.get("video_dir"))
     global_value.set_value("part_video_dir", config.get("part_video_dir"))
     _LOGGER.info(f"插件加载成功。")
@@ -133,8 +138,13 @@ def _(config: Dict):
         if config.get("follow_uid_list")
         else []
     )
+    ignore_uid_list = (
+        config.get("ignore_uid_list").split(",")
+        if config.get("ignore_uid_list")
+        else []
+    )
     global_value.set_value("danmaku_config", get_danmaku_config(config))
     global_value.set_value("video_dir", config.get("video_dir"))
     global_value.set_value("part_video_dir", config.get("part_video_dir"))
-    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"))
+    cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list)
     _LOGGER.info(f"插件配置更新。")

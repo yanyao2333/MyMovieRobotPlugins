@@ -22,7 +22,7 @@ follow_check_parts = 0
 follow_check_now_parts = 0
 
 
-def get_config(follow_uid, if_get_follow_list):
+def get_config(follow_uid, if_get_follow_list, ignore_uid_list):
     global follow_uid_list
     follow_uid_list = []
     if if_get_follow_list:
@@ -30,6 +30,11 @@ def get_config(follow_uid, if_get_follow_list):
         follow_uid_list += follow_uid
     else:
         follow_uid_list = follow_uid
+    if ignore_uid_list:
+        for i in ignore_uid_list:
+            if i in follow_uid_list:
+                follow_uid_list.remove(i)
+    _LOGGER.info(f"最终追更列表：{follow_uid_list}")
     get_limit_parts(follow_uid_list)
 
 
