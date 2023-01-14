@@ -178,7 +178,7 @@ class BilibiliProcess:
                 return
             _LOGGER.info(f"开始生成 {self.title} 的视频nfo文件")
             video_info = self.video_info
-            root = etree.Element("video")
+            root = etree.Element("movie")
             raw_year = time.strftime("%Y", time.localtime(video_info["pubdate"]))
             title = etree.SubElement(root, "title")
             title.text = video_info["title"]
