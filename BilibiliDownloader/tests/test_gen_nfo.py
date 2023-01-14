@@ -28,6 +28,7 @@ class TestNfoGenerator(unittest.TestCase):
                 {
                     "name": "测试",
                     "role": "测试",
+                    "mid": 1,
                 }
             ],
             "tags": [
@@ -49,6 +50,23 @@ class TestNfoGenerator(unittest.TestCase):
         nn = asyncio.run(nfo.gen_movie_nfo())
         asyncio.run(nfo.save_nfo(nn, "./movie.nfo"))
         
+    def test_gen_tvshow_nfo(self):
+        media_info = self.build_media_info()
+        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nn = asyncio.run(nfo.gen_tvshow_nfo())
+        asyncio.run(nfo.save_nfo(nn, "./tvshow.nfo"))
+
+    def test_gen_episode_nfo(self):
+        media_info = self.build_media_info()
+        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nn = asyncio.run(nfo.gen_episodedetails_nfo())
+        asyncio.run(nfo.save_nfo(nn, "./episode.nfo"))
+
+    def test_gen_people_nfo(self):
+        media_info = self.build_media_info()
+        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nn = asyncio.run(nfo.gen_people_nfo())
+        asyncio.run(nfo.save_nfo(nn, "./people.nfo"))
 
 if __name__ == "__main__":
     unittest.main()

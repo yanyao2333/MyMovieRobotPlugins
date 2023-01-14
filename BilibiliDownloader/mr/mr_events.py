@@ -9,11 +9,11 @@ from bilibili_api import sync, Credential
 import logging
 from mbot.openapi import mbot_api
 
-from . import bilibili_main
-from . import cron_tasks
-from .Utils import global_value
-from . import bilibili_login
-from . import process_pages_video
+from .. import bilibili_main
+from .. import cron_tasks
+from utils import global_value
+from .. import bilibili_login
+from .. import process_pages_video
 from pydantic import BaseModel, validator
 from typing import Optional
 

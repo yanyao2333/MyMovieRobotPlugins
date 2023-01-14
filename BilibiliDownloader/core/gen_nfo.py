@@ -35,7 +35,7 @@ class NfoGenerator:
         self.title = self.media_info["title"]
         _LOGGER.info(media_info)
 
-    async def _validate_media_info(self) -> bool:
+    def _validate_media_info(self) -> bool:
         """验证传入的media_info是否合法
 
         Returns:
@@ -236,13 +236,6 @@ class NfoGenerator:
                 type = etree.SubElement(root, "uniqueid", type="bilibili_id")
                 type.text = str(character["mid"])
                 tree = etree.ElementTree(root)
-                path = f"{self.video_path}/character/{character['name']}/person.nfo"
-                tree.write(
-                    str(path),
-                    encoding="utf-8",
-                    pretty_print=True,
-                    xml_declaration=True,
-                )
                 _LOGGER.info(f"up主 「{character['name']}」 nfo信息生成完成")
         else:
             root = etree.Element("person")
@@ -261,6 +254,7 @@ class NfoGenerator:
             tree = etree.ElementTree(root)
             _LOGGER.info(f"up主 「{_video_info['owner']['name']}」 nfo信息生成完成")
         _LOGGER.info(f"{self.title} 的up主nfo信息生成完成")
+        return tree
 
     @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def save_nfo(self, tree: etree.ElementTree, nfo_path: str):

@@ -28,6 +28,7 @@ def install():
 
 install()
 
-from .events import *
-from .cron_tasks import *
-from .mr_commands import *
+# from .mr.mr_events import *
+# from .cron_tasks import *
+# from .mr_commands import *
+from .bilibili_main import *
