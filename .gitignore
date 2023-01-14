@@ -1,2 +1,4 @@
 /mrapi
 /.idea
+.vscode
+__pycache__
