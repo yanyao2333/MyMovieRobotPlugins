@@ -1,5 +1,5 @@
 """
-movie-robot快捷指令对接
+movie-robot快捷指令注册
 """
 import asyncio
 import logging
@@ -13,7 +13,7 @@ from mbot.core.params import ArgSchema, ArgType
 from mbot.core.plugins import plugin, PluginCommandContext, PluginCommandResponse
 
 from . import bilibili_main
-from .Utils import global_value
+from utils import global_value
 from . import bilibili_login
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def find_bv(url):
 @plugin.command(
     name="sub_by_bilibili",
     title="下载bilibili视频",
-    desc="下载bilibili视频并自动刮削（应该支持分P）",
+    desc="下载bilibili视频并自动刮削（支持分P视频）",
     icon="CloudDownload",
     run_in_background=True,
 )

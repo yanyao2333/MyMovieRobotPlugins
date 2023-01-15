@@ -1,3 +1,5 @@
+"""movie-robot定时任务注册"""
+
 import threading
 
 from apscheduler.schedulers.blocking import BlockingScheduler

@@ -14,6 +14,7 @@ import sys
 import time
 import traceback
 import math
+from BilibiliDownloader.core import nfo_generator
 
 import ffmpeg
 import httpx
@@ -54,6 +55,8 @@ class DownloadError(Exception):
 class VideoPathNotSet(Exception):
     pass
 
+class VideoInfo404(Exception):
+    pass
 
 def get_config():
     global credential
@@ -97,7 +100,7 @@ class BilibiliProcess:
             self.video_info["title"] = self.video_info["title"].replace("/", " ")
             self.title = f"「{self.video_info['title']}」"
             raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
-            self.video_path = f"{local_path}/{self.video_info['title']} ({raw_year})"
+            self.video_path = f"{local_path}/tmp/{self.video_info['title']} ({raw_year})"
         except Exception:
             tracebacklog = traceback.format_exc()
             _LOGGER.error(f"获取视频信息失败，请检查提交的bv号是否正确！")
@@ -177,51 +180,11 @@ class BilibiliProcess:
         try:
             if await Utils.read_error_video(self.video_info):
                 return
-            _LOGGER.info(f"开始生成 {self.title} 的视频nfo文件")
-            video_info = self.video_info
-            root = etree.Element("video")
-            raw_year = time.strftime("%Y", time.localtime(video_info["pubdate"]))
-            title = etree.SubElement(root, "title")
-            title.text = video_info["title"]
-            plot = etree.SubElement(root, "plot")
-            plot.text = video_info["desc"]
-            year = etree.SubElement(root, "year")
-            year.text = time.strftime("%Y", time.localtime(video_info["pubdate"]))
-            premiered = etree.SubElement(root, "premiered")
-            premiered.text = time.strftime(
-                "%Y-%m-%d", time.localtime(video_info["pubdate"])
-            )
-            studio = etree.SubElement(root, "studio")
-            studio.text = video_info["owner"]["name"]
-            id = etree.SubElement(root, "id")
-            id.text = video_info["bvid"]
-            genre = etree.SubElement(root, "genre")
-            genre.text = video_info["tname"]
-            runtime = etree.SubElement(root, "runtime")
-            runtime.text = (
-                str(self.video_info["duration"] // 60)
-                if self.video_info["duration"] // 60 > 0
-                else "1"
-            )
-            try:
-                for character in video_info["staff"]:
-                    actor = etree.SubElement(root, "actor")
-                    name = etree.SubElement(actor, "name")
-                    name.text = character["name"]
-                    role = etree.SubElement(actor, "role")
-                    role.text = character["title"]
-                    mid = etree.SubElement(actor, "bilibili_id")
-                    mid.text = str(character["mid"])
-            except KeyError:
-                actor = etree.SubElement(root, "actor")
-                name = etree.SubElement(actor, "name")
-                name.text = video_info["owner"]["name"]
-                type = etree.SubElement(actor, "type")
-                type.text = "UP主"
-                mid = etree.SubElement(actor, "bilibili_id")
-                mid.text = str(video_info["owner"]["mid"])
-            tree = etree.ElementTree(root)
+            raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
+            nfo = nfo_generator.NfoGenerator(self.video_info)
+            tree = nfo.gen_movie_nfo()
             path = f"{self.video_path}/{self.video_info['title']} ({raw_year}).nfo"
+            nfo.save_nfo(tree, path)
             tree.write(path, encoding="utf-8", pretty_print=True, xml_declaration=True)
             _LOGGER.info(f"{self.title} 视频nfo文件生成完成")
         except Exception as e:
@@ -767,7 +730,6 @@ class ListenUploadVideo:
         self.media_path = media_path
         self.emby_persons_path = emby_persons_path
 
-    # TODO: 追更列表过多会引发风控，需要进行限流操作
     async def listen_no_pages_video_new(self):
         """
         官方没有给查看分p上传时间的接口，遇到分p视频直接ignore，并通知用户自行下载
@@ -861,75 +823,6 @@ class ListenUploadVideo:
                 return True
             except json.decoder.JSONDecodeError:
                 return False
-
-
-class Notify:
-    """在下载整理完成时通知用户（走mr渠道） 只推送给第一个用户"""
-
-    def __init__(self, video_info):
-        self.video_info = video_info
-
-    def send_message_by_templ(self):
-        """发送模板消息"""
-        raw_year = time.strftime("%Y", time.localtime(self.video_info["pubdate"]))
-        title = f"✔️{self.video_info['title']} ({raw_year}) 下载完成"
-        pubtime = time.strftime(
-            "%Y-%m-%d %H:%M:%S", time.localtime(self.video_info["pubdate"])
-        )
-        desc = self.video_info["desc"]
-        duration = (
-            str(self.video_info["duration"] // 60)
-            if self.video_info["duration"] // 60 > 0
-            else "0"
-        )
-        message = (
-            f"视频标题：{self.video_info['title']}\n"
-            f"发布时间：{pubtime}\n"
-            f"视频时长：{duration}分钟\n"
-            f"视频标签：{self.video_info['tname']}\n"
-            f"·····································\n"
-            f"{desc}"
-        )
-        link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
-        poster_url = self.video_info["pic"]
-        _LOGGER.info(f"开始发送模板消息")
-        server.notify.send_message_by_tmpl(
-            title=title,
-            body=message,
-            context={"link_url": link_url, "pic_url": poster_url},
-            to_uid=1,
-        )
-
-    def send_sys_message(self):
-        """发送系统消息"""
-        _LOGGER.info("开始发送系统消息")
-        server.notify.send_system_message(
-            title="bilibili下载完成",
-            to_uid=1,
-            message=f"「{self.video_info['title']}」 下载完成，请刷新媒体库",
-        )
-
-    def send_all_way(self):
-        """发送所有通知方式"""
-        self.send_message_by_templ()
-        self.send_sys_message()
-
-    def send_pages_video_notify(self):
-        """发送分p视频通知"""
-        _LOGGER.info("开始发送分p视频通知")
-        server.notify.send_system_message(
-            title="bilibili追更提醒",
-            to_uid=1,
-            message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
-        )
-        link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
-        poster_url = self.video_info["pic"]
-        server.notify.send_message_by_tmpl(
-            title="bilibili追更提醒",
-            to_uid=1,
-            body=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n由于b站相关api的限制，请自行在视频完结后手动下载",
-            context={"link_url": link_url, "pic_url": poster_url},
-        )
 
 
 if __name__ == "__main__":

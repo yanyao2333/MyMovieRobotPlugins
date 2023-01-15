@@ -1,3 +1,5 @@
+"""movie-robot事件注册"""
+
 import json
 import os
 import threading

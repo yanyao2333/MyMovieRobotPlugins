@@ -10,18 +10,12 @@ import utils
 
 _LOGGER = utils.LOGGER
 
-class MediaInfoError(Exception):
-    """传入的media_info不合法"""
-
-    pass
-
 class NfoGenerator:
     page = 0
     bvid = ""
 
     def __init__(self, media_info: dict, page: int = 0) -> None:
         """构建nfo元数据，返回xml
-
         Args:
             media_info (dict): bilibili_api返回的视频info
             page (int, optional): 指定分p视频的p数，0为普通视频 Defaults to 0.
@@ -37,7 +31,6 @@ class NfoGenerator:
 
     def _validate_media_info(self) -> bool:
         """验证传入的media_info是否合法
-
         Returns:
             bool: 是否合法
         """
@@ -49,7 +42,6 @@ class NfoGenerator:
 
     async def _process_media_info(self) -> dict:
         """给传入的media_info加料
-
         Returns:
             dict: 加料后的media_info
         """
@@ -66,7 +58,6 @@ class NfoGenerator:
         
     def _get_id_and_page(self) -> tuple:
         """返回视频id
-
         Returns:
             str: 视频id
             int: 视频第几p
@@ -76,7 +67,6 @@ class NfoGenerator:
     @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_movie_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
-
         Returns:
             etree.ElementTree: xml元数据
         """
@@ -123,7 +113,6 @@ class NfoGenerator:
     @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_tvshow_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
-
         Returns:
             etree.ElementTree: xml元数据
         """
@@ -168,7 +157,6 @@ class NfoGenerator:
     @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_episodedetails_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
-
         Returns:
             etree.ElementTree: xml元数据
         """
@@ -214,7 +202,6 @@ class NfoGenerator:
 
     async def gen_people_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
-
         Returns:
             etree.ElementTree: xml元数据
         """
@@ -260,7 +247,6 @@ class NfoGenerator:
     async def save_nfo(self, tree: etree.ElementTree, nfo_path: str):
         """
         保存nfo文件
-
         Args:
             tree (etree.ElementTree): 之前构建出来的xml元数据
             nfo_path (str): nfo文件路径（包含文件名及后缀）
