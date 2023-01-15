@@ -1,18 +1,22 @@
 """根据传来的数据生成nfo"""
 
-import os
+from aiofiles import os
 import time
 from lxml import etree
 from enum import Enum
 
 import pypinyin
-import utils
+from ..utils import LOGGER, handle_error
 
-_LOGGER = utils.LOGGER
+_LOGGER = LOGGER
+
+
+class MediaInfoError(Exception):
+    """媒体信息错误"""
+    pass
+
 
 class NfoGenerator:
-    page = 0
-    bvid = ""
 
     def __init__(self, media_info: dict, page: int = 0) -> None:
         """构建nfo元数据，返回xml
@@ -22,8 +26,6 @@ class NfoGenerator:
         """
         self.media_info = media_info
         self.page = page
-        NfoGenerator.page = page
-        NfoGenerator.bvid = media_info["bvid"]
         if not self._validate_media_info():
             raise MediaInfoError("传入的media_info不合法，可能是被风控了，跳过该视频。详细media_info内容：\n{}".format(self.media_info))
         self.title = self.media_info["title"]
@@ -55,16 +57,7 @@ class NfoGenerator:
             ))
         meta_data.update(pubdate=time.strftime("%Y-%m-%d", time.localtime(_media_info["pubdate"])))
         return meta_data
-        
-    def _get_id_and_page(self) -> tuple:
-        """返回视频id
-        Returns:
-            str: 视频id
-            int: 视频第几p
-        """
-        return self._video_info["bvid"], self.page
 
-    @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_movie_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
         Returns:
@@ -110,7 +103,6 @@ class NfoGenerator:
         _LOGGER.info(f"生成 {self.title} 的movie nfo文件成功")
         return tree
 
-    @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_tvshow_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
         Returns:
@@ -154,7 +146,6 @@ class NfoGenerator:
         _LOGGER.info(f"生成 {self.title} 的tvshow nfo文件成功")
         return tree
 
-    @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def gen_episodedetails_nfo(self) -> etree.ElementTree:
         """返回由etree构建的xml元数据
         Returns:
@@ -200,13 +191,14 @@ class NfoGenerator:
         _LOGGER.info(f"生成 {self.title} 的episodedetails nfo文件成功")
         return tree
 
-    async def gen_people_nfo(self) -> etree.ElementTree:
+    async def gen_people_nfo(self) -> dict[str, etree.ElementTree]:
         """返回由etree构建的xml元数据
         Returns:
-            etree.ElementTree: xml元数据
+            dict[str, etree.ElementTree]: 所有人物的xml元数据
         """
         _LOGGER.info(f"开始生成 {self.title} 的people nfo文件")
         _video_info = await self._process_media_info()
+        tree = {}
         if "staff" in _video_info:
             for character in _video_info["staff"]:
                 root = etree.Element("person")
@@ -222,7 +214,7 @@ class NfoGenerator:
                 mid.text = str(character["mid"])
                 type = etree.SubElement(root, "uniqueid", type="bilibili_id")
                 type.text = str(character["mid"])
-                tree = etree.ElementTree(root)
+                tree[character["name"]] = etree.ElementTree(root)
                 _LOGGER.info(f"up主 「{character['name']}」 nfo信息生成完成")
         else:
             root = etree.Element("person")
@@ -238,12 +230,11 @@ class NfoGenerator:
             mid.text = str(_video_info["owner"]["mid"])
             type = etree.SubElement(root, "uniqueid", type="bilibili_id")
             type.text = str(_video_info["owner"]["mid"])
-            tree = etree.ElementTree(root)
+            tree[_video_info["owner"]["name"]] = etree.ElementTree(root)
             _LOGGER.info(f"up主 「{_video_info['owner']['name']}」 nfo信息生成完成")
-        _LOGGER.info(f"{self.title} 的up主nfo信息生成完成")
+            _LOGGER.info(f"{self.title} 的up主nfo信息生成完成")
         return tree
 
-    @utils.handle_error(remove_error_video_folder=True, record_error_video=True, record_video_bvid=bvid, record_video_page=page)
     async def save_nfo(self, tree: etree.ElementTree, nfo_path: str):
         """
         保存nfo文件
@@ -252,8 +243,8 @@ class NfoGenerator:
             nfo_path (str): nfo文件路径（包含文件名及后缀）
         """
         _LOGGER.info(f"开始根据传入的xml信息保存nfo文件")
-        if os.path.exists(nfo_path):
-            os.remove(nfo_path)
+        if await os.path.exists(nfo_path):
+            await os.remove(nfo_path)
         if tree is None:
             raise ValueError("传入的xml信息为空")
         tree.write(nfo_path, encoding="utf-8", xml_declaration=True, pretty_print=True)

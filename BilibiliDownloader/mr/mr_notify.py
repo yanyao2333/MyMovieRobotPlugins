@@ -7,6 +7,7 @@ from . import server
 _LOGGER = LOGGER
 _server = server
 
+
 class Notify:
 
     def __init__(self, video_info):

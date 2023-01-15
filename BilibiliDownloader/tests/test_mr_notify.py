@@ -1,9 +1,7 @@
 import unittest
-import sys
+from BilibiliDownloader.utils import global_value
+from BilibiliDownloader.mr import mr_notify
 
-sys.path.insert(0, "F:\MyMovieRobotPlugins\BilibiliDownloader")
-from utils import global_value
-from mr import mr_notify
 
 class TestMrNotify(unittest.TestCase):
     def setUp(self):
@@ -35,6 +33,7 @@ class TestMrNotify(unittest.TestCase):
     def test_send_pages_video_notify(self):
         notify = mr_notify.Notify(self.video_info)
         notify.send_pages_video_notify()
+
 
 if __name__ == "__main__":
     unittest.main()

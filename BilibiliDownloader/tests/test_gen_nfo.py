@@ -1,10 +1,6 @@
 import unittest
 import asyncio
-import sys
-
-sys.path.insert(0, "F:\MyMovieRobotPlugins\BilibiliDownloader")
-
-from core import gen_nfo
+from BilibiliDownloader.core import nfo_generator
 
 class TestNfoGenerator(unittest.TestCase):
     def build_media_info(self):
@@ -45,26 +41,26 @@ class TestNfoGenerator(unittest.TestCase):
 
     def test_gen_movie_nfo(self):
         media_info = self.build_media_info()
-        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nfo = nfo_generator.NfoGenerator(media_info=media_info)
         print(nfo.media_info)
         nn = asyncio.run(nfo.gen_movie_nfo())
         asyncio.run(nfo.save_nfo(nn, "./movie.nfo"))
         
     def test_gen_tvshow_nfo(self):
         media_info = self.build_media_info()
-        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nfo = nfo_generator.NfoGenerator(media_info=media_info)
         nn = asyncio.run(nfo.gen_tvshow_nfo())
         asyncio.run(nfo.save_nfo(nn, "./tvshow.nfo"))
 
     def test_gen_episode_nfo(self):
         media_info = self.build_media_info()
-        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nfo = nfo_generator.NfoGenerator(media_info=media_info)
         nn = asyncio.run(nfo.gen_episodedetails_nfo())
         asyncio.run(nfo.save_nfo(nn, "./episode.nfo"))
 
     def test_gen_people_nfo(self):
         media_info = self.build_media_info()
-        nfo = gen_nfo.NfoGenerator(media_info=media_info)
+        nfo = nfo_generator.NfoGenerator(media_info=media_info)
         nn = asyncio.run(nfo.gen_people_nfo())
         asyncio.run(nfo.save_nfo(nn, "./people.nfo"))
 

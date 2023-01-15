@@ -1,8 +1,13 @@
+import traceback
+
+from aiofiles import os, open
+
 from utils import LOGGER, handle_error
 import tenacity
 import httpx
 
 _LOGGER = LOGGER
+
 
 class DownloadFunc:
     """下载类 用于下载视频和封面"""
@@ -34,16 +39,16 @@ class DownloadFunc:
             async with httpx.AsyncClient(headers=self.HEADERS) as client:
                 async with client.stream("GET", self.url) as response:
                     _LOGGER.info(f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}")
-                    with open(self.path, "wb") as f:
+                    async with open(self.path, "wb") as f:
                         async for data in response.aiter_bytes():
-                            f.write(data)
+                            await f.write(data)
         except FileNotFoundError:
             _LOGGER.error(f"文件路径不存在：{self.path}，可能是被偷家了，终止本次处理，等待重试")
             return None
         except Exception as e:
             _LOGGER.error(f"下载失败，50秒后重试")
             tracebacklog = traceback.format_exc()
-            _LOGGER.error(tracebacklog)
+            _LOGGER.error("报错原因：\n" + tracebacklog)
             return False
         else:
             return True
@@ -58,13 +63,12 @@ class DownloadFunc:
         """这个是我瞎写的包含断点续传功能的下载方法"""
         try:
             async with httpx.AsyncClient() as client:
-                # 无需创建
                 _LOGGER.info(f"开始使用断点续传下载url：{self.url}，保存路径：{self.path}")
                 response = await client.head(self.url, headers=self.HEADERS)
                 file_size = int(response.headers["content-length"])
                 try:
-                    with open(self.path, "rb") as file:
-                        downloaded_size = len(file.read())
+                    async with open(self.path, "rb") as file:
+                        downloaded_size = len(await file.read())
                 except FileNotFoundError:
                     downloaded_size = 0
                 if downloaded_size < file_size:
@@ -78,10 +82,10 @@ class DownloadFunc:
                             return False, size
                         else:
                             return True, size
-                    with open(self.path, "ab") as file:
-                        file.write(response.content)
-                    with open(self.path, "rb") as file:
-                        downloaded_size = len(file.read())
+                    async with open(self.path, "ab") as file:
+                        await file.write(response.content)
+                    async with open(self.path, "rb") as file:
+                        downloaded_size = len(await file.read())
                 _LOGGER.info(f"下载完成，文件大小：{downloaded_size}")
                 if downloaded_size == 0:
                     _LOGGER.error(f"下载的文件大小为0，50秒后重试")
@@ -90,7 +94,7 @@ class DownloadFunc:
         except:
             _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
             tracebacklog = traceback.format_exc()
-            _LOGGER.error(tracebacklog)
+            _LOGGER.error("报错原因：\n" + tracebacklog)
             return False
 
     @tenacity.retry(
@@ -104,22 +108,20 @@ class DownloadFunc:
         try:
             _LOGGER.info(f"开始普通下载url：{self.url}，保存路径：{self.path}")
             async with httpx.AsyncClient(headers=self.HEADERS) as sess:
-                # 删除range请求头
                 if "range" in sess.headers:
                     del sess.headers["range"]
                 resp = await sess.get(self.url)
                 _LOGGER.info(f"本次请求请求头：{resp.request.headers}，状态码：{resp.status_code}")
-                length = resp.headers.get("content-length")
-                with open(self.path, "wb") as f:
-                    f.write(resp.content)
+                async with open(self.path, "wb") as f:
+                    await f.write(resp.content)
                     size = len(resp.content)
                 _LOGGER.info(f"下载完成，文件大小：{size}")
         except:
             _LOGGER.error(f"下载失败 休息50秒后从失败处重试")
-            if os.path.exists(self.path):
-                os.remove(self.path)
+            if await os.path.exists(self.path):
+                await os.remove(self.path)
             tracebacklog = traceback.format_exc()
-            _LOGGER.error(tracebacklog)
+            _LOGGER.error("报错原因：\n" + tracebacklog)
             return False
         else:
             return True, size
