@@ -1,176 +1,19 @@
 """核心部分，控制视频下载刮削流程"""
-
-import traceback
 import shutil
 
-import ffmpeg
-import httpx
-from aiofiles import open, os
-import os as _os
-import sys
+from aiofiles import os
 
-from bilibili_api import video, user, sync, exceptions, ass
-from utils import handle_error, global_value, LOGGER
-from . import downloader, nfo_generator
+from utils import global_value, LOGGER, handle_error
+from . import nfo_generator
+from .public_function import get_video_info, download_video, download_subtitle, download_video_cover, downlod_ass_danmakus, download_people_image
 
-global_value.init()
-global_value.set_value("local_path", _os.path.split(_os.path.realpath(__file__))[0])
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
 NoRetry = "NoRetry"
 
 
-class DownloadError(Exception):
-    pass
-
-
-async def get_video_info(bvid: str = None, video_object: video.Video = None) -> tuple[dict, video.Video] | bool:
-    """获取视频信息
-
-    :param bvid: BV号(和video_object二选一)
-    :param video_object: 视频对象
-
-    :return: 视频信息，视频对象
-    """
-    if video_object is None and bvid is None:
-        raise ValueError("bvid和video_object不能同时为空")
-    try:
-        video_object = video.Video(bvid=bvid) if bvid is not None else video_object
-        video_info = await video_object.get_info()
-        return video_info, video_object
-    except exceptions.ResponseCodeException:
-        _LOGGER.error(f"视频 {bvid} 不存在，详细报错信息：\n{traceback.format_exc()}")
-        return False
-    except exceptions.ArgsException:
-        _LOGGER.error(f"BV号输入错误，详细报错信息：\n{traceback.format_exc()}")
-        return False
-    except Exception:
-        _LOGGER.error(f"获取视频 {bvid} 信息时发生未知错误，详细报错信息：\n{traceback.format_exc()}")
-        return False
-
-
-async def download_video(video_object: video.Video, dst: str, filename: str, page: int = 0) -> str | bool:
-    """下载视频
-
-    :param video_object: 视频对象
-    :param dst: 保存路径
-    :param filename: 文件名， 不包含后缀
-    :param page: 分P序号
-
-    :return: 是否下载成功
-    """
-    if not await os.path.exists(dst):
-        await os.makedirs(dst, exist_ok=True)
-    res = await get_video_info(video_object=video_object)
-    if res is False:
-        _LOGGER.error(f"跳过此视频下载")
-        return NoRetry
-    video_info, video_object = res
-    title = video_info["title"].replace("/", " ")
-    pretty_title = " 「" + title + "」 "
-    if not await os.path.exists(f"{local_path}/tmp/{title}"):
-        await os.makedirs(f"{local_path}/tmp/{title}", exist_ok=True)
-    try:
-        url = await video_object.get_download_url(page_index=page)
-    except exceptions.ResponseCodeException:
-        _LOGGER.error(f"视频{pretty_title}不存在，详细报错信息：\n{traceback.format_exc()}")
-        return False
-    _LOGGER.info(f"该视频存在 {url['accept_description']} 种清晰度，根据你的账号权限，开始选择最高清晰度下载")
-    video_url = url["dash"]["video"][0]["baseUrl"]
-    audio_url = url["dash"]["audio"][0]["baseUrl"]
-    DownloadFunc = downloader.DownloadFunc
-    v_path = f"{local_path}/tmp/{title}/video_temp.m4s"
-    res, v_size = await DownloadFunc(video_url, v_path).download_with_resume()
-    if res:
-        _LOGGER.info(f"{pretty_title} m4s视频下载到完成")
-    else:
-        _LOGGER.error(f"{pretty_title} m4s视频下载失败")
-        return False
-    a_path = f"{local_path}/tmp/{title}/audio_temp.m4s"
-    res, a_size = await DownloadFunc(audio_url, a_path).download_with_resume()
-    if res:
-        _LOGGER.info(f"{pretty_title} m4s音频下载完成")
-    else:
-        _LOGGER.error(f"{pretty_title} m4s音频下载失败")
-        return False
-    if v_size == 0 or a_size == 0 or v_size == 202 or a_size == 202:
-        _LOGGER.error(f"{pretty_title} 下载资源大小不正确，放弃本次下载，稍后重试")
-        return False
-    in_video = ffmpeg.input(v_path)
-    in_audio = ffmpeg.input(a_path)
-    ffmpeg.output(
-        in_video,
-        in_audio,
-        f"{dst}/{filename}.mp4",
-        vcodec="copy",
-        acodec="copy",
-    ).run(overwrite_output=True)
-    await os.remove(v_path)
-    await os.remove(a_path)
-    await os.removedirs(f"{local_path}/tmp/{title}")
-    _LOGGER.info(
-        f"视频音频下载完成，已混流为mp4文件，保存路径为：{dst}/{filename}.mp4"
-    )
-    return True
-
-
-async def download_video_cover(video_info: dict, dst: str, filename: str) -> bool:
-    """下载视频封面
-
-    :param video_info: 视频信息
-    :param dst: 保存路径
-    :param filename: 文件名， 不包含后缀
-
-    :return: 是否下载成功
-    """
-    if not await os.path.exists(dst):
-        await os.makedirs(dst, exist_ok=True)
-    download_url = video_info["pic"]
-    title = video_info["title"].replace("/", " ")
-    pretty_title = " 「" + title + "」 "
-    DownloadFunc = downloader.DownloadFunc
-    res = await DownloadFunc(download_url, f"{dst}/{filename}.jpg").download_cover()
-    if res:
-        _LOGGER.info(f"{pretty_title} 封面下载完成，保存路径为：{dst}/{filename}.jpg")
-        return True
-    else:
-        _LOGGER.error(f"{pretty_title} 封面下载失败")
-        return False
-
-
-async def download_people_image(video_info: dict, dst: str, filename: str, people_name: str) -> str | bool:
-    """下载用户头像
-
-    :param video_info: 视频信息
-    :param dst: 保存路径
-    :param filename: 文件名， 不包含后缀
-    :param people_name: 要下载头像的up主名字
-
-    :return: 是否下载成功
-    """
-    if not await os.path.exists(dst):
-        await os.makedirs(dst, exist_ok=True)
-    DownloadFunc = downloader.DownloadFunc
-    if "staff" in video_info:
-        for staff in video_info["staff"]:
-            if staff["name"] == people_name:
-                download_url = staff["face"]
-                break
-    elif video_info["owner"]["name"] == people_name:
-        download_url = video_info["owner"]["face"]
-    else:
-        _LOGGER.error(f"视频信息中不存在 {people_name} 的头像信息")
-        return NoRetry
-    res = await DownloadFunc(download_url, f"{dst}/{filename}.jpg").download_cover()
-    if res:
-        _LOGGER.info(f"up主头像下载完成，保存路径为：{dst}/{filename}.jpg")
-        return True
-    else:
-        _LOGGER.error(f"up主头像下载失败")
-        return False
-
-
 class ProcessNormalVideo:
+    bvid = ""
     def __init__(self, bvid: str, video_path: str, scraper_people: bool, emby_people_path: str = None):
         """单视频下载刮削流程
 
@@ -188,6 +31,7 @@ class ProcessNormalVideo:
         self.video_path = video_path
         self.scraper_people = scraper_people
         self.emby_people_path = emby_people_path
+        ProcessNormalVideo.bvid = bvid
 
     async def check_args(self):
         """检查参数是否合法"""
@@ -227,10 +71,14 @@ class ProcessNormalVideo:
             bool: 是否下载成功
         """
         _LOGGER.info(f"开始下载视频：{self.pretty_title}")
+        _title = self.title
+        if len(self.title) > 250:
+            _title = self.title[:220]
+            _LOGGER.warning(f"视频标题过长，已截取前220个字符作为视频文件名：{_title}")
         res = await download_video(
             video_object=self.video_object,
             dst=self.video_path,
-            filename=self.video_info["title"],
+            filename=_title,
         )
         if res is False:
             return False
@@ -249,6 +97,10 @@ class ProcessNormalVideo:
         _LOGGER.info("开始生成nfo文件")
         scraper = nfo_generator.NfoGenerator(self.video_info)
         path = f"{self.video_path}/{self.title}.nfo"
+        if len(self.title) > 250:
+            _title = self.title[:220]
+            _LOGGER.warning(f"视频标题过长，已截取前220个字符作为nfo文件名：{_title}")
+            path = f"{self.video_path}/{_title}.nfo"
         tree = await scraper.gen_movie_nfo()
         await scraper.save_nfo(tree, path)
         _LOGGER.info(f"nfo文件生成完成，保存路径为：{path}")
@@ -288,6 +140,49 @@ class ProcessNormalVideo:
         _LOGGER.info(f"up主刮削完成：{self.pretty_title}")
         return True
 
+    async def save_danmakus(self) -> bool | str:
+        """保存弹幕
+
+        Returns:
+            bool: 是否保存成功
+        """
+        _LOGGER.info(f"开始保存弹幕：{self.pretty_title}")
+        res = await downlod_ass_danmakus(self.video_object, self.video_path, self.title)
+        if res is False:
+            _LOGGER.info(f"弹幕消失在了虚空中！请尝试自行下载")
+            return True
+        _LOGGER.info(f"弹幕保存完成：{self.pretty_title}")
+        return True
+
+    async def save_subtitles(self) -> bool | str:
+        """保存字幕
+
+        Returns:
+            bool: 是否保存成功
+        """
+        _LOGGER.info(f"开始保存字幕：{self.pretty_title}")
+        subtitle_list = self.video_info["subtitle"]["list"]
+        if len(subtitle_list) == 0:
+            _LOGGER.info(f"视频没有字幕")
+            return True
+        _LOGGER.info(f"视频有 {len(subtitle_list)} 个字幕，开始处理")
+        for subtitle in subtitle_list:
+            if "ai" in subtitle["lan"]:
+                _LOGGER.info(f"这个字幕为AI字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+            elif "zh" in subtitle["lan"]:
+                _LOGGER.info(f"这个字幕为中文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+            else:
+                _LOGGER.info(f"这个字幕为外文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+            filename = f"{self.title}.{subtitle['lan']}"
+            res = await download_subtitle(subtitle["subtitle_url"], self.video_path, filename)
+            if res is False:
+                _LOGGER.info(f"该字幕下载失败，跳过处理")
+                continue
+            _LOGGER.info(f"该字幕下载完成，保存路径为：{self.video_path}/{filename}")
+        _LOGGER.info(f"字幕保存完成：{self.pretty_title}")
+        return True
+
+    @handle_error(record_error_video=True, remove_error_video_folder=True, record_video_page=0, record_video_bvid=bvid)
     async def run(self) -> str | bool:
         """执行刮削
 
@@ -295,16 +190,19 @@ class ProcessNormalVideo:
             bool: 是否刮削成功
         """
         _LOGGER.info("收到刮削任务，先等我检查一下传入参数是否正确，并准备一些必要的东西")
-        func_list = [
+        task_list = [
             self.download,
             self.scraper,
             self.scraper_people_folder,
+            self.save_danmakus,
+            self.save_subtitles,
         ]
         if await self.check_args() is NoRetry:
             return NoRetry
         if await self.get_video_info() is NoRetry:
             return NoRetry
-        for func in func_list:
+        _LOGGER.info("准备工作完成，开始执行刮削任务")
+        for func in task_list:
             res = await func()
             if res is NoRetry:
                 _LOGGER.error(f"刮削任务失败，但是会重试")
@@ -312,16 +210,6 @@ class ProcessNormalVideo:
             elif res is False:
                 _LOGGER.error(f"刮削任务失败，不会重试")
                 return False
-        _LOGGER.info(f"开始刮削视频：{self.pretty_title}")
-        # asyncio.get_event_loop()
-        # tasks = [
-        #     asyncio.create_task(self.download()),
-        #     asyncio.create_task(self.scraper()),
-        #     asyncio.create_task(self.scraper_people_folder()),
-        # ]
-        # res = await asyncio.gather(*tasks)
-        # if False or NoRetry in res:
-        #     return False
         _LOGGER.info(f"视频刮削完成：{self.pretty_title}")
         return True
 
