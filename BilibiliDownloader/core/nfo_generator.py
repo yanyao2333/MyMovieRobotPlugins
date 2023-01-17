@@ -249,6 +249,9 @@ class NfoGenerator:
             _LOGGER.info(f"{self.title} 的up主nfo信息生成完成")
         return tree
 
+    async def gen_tvshow_nfo_by_people(self) -> etree.ElementTree:
+        pass
+
     async def save_nfo(self, tree: etree.ElementTree, nfo_path: str):
         """
         保存nfo文件

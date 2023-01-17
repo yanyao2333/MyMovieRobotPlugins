@@ -1,6 +1,7 @@
 """movie-robot api交互"""
 
 from moviebotapi import Session
+from . import server
 
 
 class ScraperApi:
@@ -25,3 +26,8 @@ class NotifyConfig:
 
     def config(self):
         return self._session.get("setting.get_notify")
+
+def upload_image(path: str):
+    """上传图片"""
+    img = server.user.upload_img_to_cloud_by_filepath(path)
+    return img

@@ -1,6 +1,6 @@
 from . import LOGGER, global_value
 import enum
-from mr import mr_api, server
+from mr import mr_api, mr_session
 
 _LOGGER = LOGGER
 
@@ -45,7 +45,7 @@ def if_get_character() -> bool and str | None:
 
     :return: 是否获取角色信息，角色信息保存路径
     """
-    api = mr_api.ScraperApi(server.session)
+    api = mr_api.ScraperApi(mr_session)
     resp = api.config()
     if resp.get("use_cn_person_name"):
         return True, resp.get("person_nfo_path")

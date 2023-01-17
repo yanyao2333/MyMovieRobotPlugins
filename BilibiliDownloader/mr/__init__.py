@@ -8,3 +8,4 @@ SERVER_URL = "http://192.168.5.208:1329"
 ACCESS_KEY = "6eUk9TKHOdnm8FqfZ5tWS0Dpj4xBLizX"
 
 server = MovieBotServer(AccessKeySession(SERVER_URL, ACCESS_KEY))
+mr_session = server.session

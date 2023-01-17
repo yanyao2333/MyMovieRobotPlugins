@@ -9,6 +9,8 @@ from functools import wraps
 import logging
 import sys
 
+from . import files
+
 LOGGER = loguru.logger  # 定义全局使用的日志记录器
 
 
@@ -17,14 +19,15 @@ def handle_error(
     remove_error_video_folder: bool = False,
     record_video_bvid: str = None,
     record_video_page: int = 0,
+    remove_error_video_path: str = None,
 ):
     """捕捉函数错误
 
-    Args:
-        record_error_video (bool, optional): 是否记录错误视频id Defaults to False.
-        remove_error_video_folder (bool, optional): 是否删除错误视频所指向的文件夹 Defaults to False.
-        record_video_bvid (str, optional): 需要记录的bvid Defaults to None.
-        record_video_page (int, optional): 需要记录的分p号 Defaults to 0.
+    :param record_error_video: 是否记录错误视频
+    :param remove_error_video_folder: 是否删除错误视频文件夹
+    :param record_video_bvid: 记录错误视频的bvid
+    :param record_video_page: 记录错误视频的分p号
+    :param remove_error_video_path: 删除错误视频的路径
     """
 
     def log(func: Callable[..., Any]):
@@ -39,11 +42,11 @@ def handle_error(
                     LOGGER.error(f"函数 {func.__name__} 报错")
                     LOGGER.error(f"报错日志：\n{tracelog}")
                     if record_error_video:
-                        # TODO 完善后续处理
-                        pass
+                        await files.ErrorVideoController().write_error_video(
+                            record_video_bvid, record_video_page
+                        )
                     elif remove_error_video_folder:
-                        # TODO 完善后续处理
-                        pass
+                        await files.delete_video_folder(remove_error_video_path)
 
             return coroutine_func_handle
         else:
@@ -58,11 +61,11 @@ def handle_error(
                     LOGGER.error(f"函数 {func.__name__} 报错")
                     LOGGER.error(f"报错日志：\n{tracelog}")
                     if record_error_video:
-                        # TODO 完善后续处理
-                        pass
+                        files.ErrorVideoController().write_error_video(
+                            record_video_bvid, record_video_page
+                        )
                     elif remove_error_video_folder:
-                        # TODO 完善后续处理
-                        pass
+                        files.delete_video_folder(remove_error_video_path)
 
             return sync_func_handle
 

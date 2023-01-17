@@ -1,5 +1,7 @@
 """操作文件"""
 import json
+import shutil
+import time
 import traceback
 
 import aiofiles
@@ -15,6 +17,15 @@ if not os.path.exists(local_path):
 _LOGGER = LOGGER
 _LOGGER.info(local_path)
 
+
+async def delete_video_folder(video_path: str) -> None:
+    """删除视频目录"""
+    try:
+        shutil.rmtree(video_path)
+    except Exception as e:
+        _LOGGER.error(f"删除视频目录失败")
+        tracebacklog = traceback.format_exc()
+        _LOGGER.error(f"报错原因：{tracebacklog}")
 
 def parse_str_to_int(param_dict: dict) -> dict:
     """python的json库会将为int的key转换为str，这个函数可以将其转换回来"""

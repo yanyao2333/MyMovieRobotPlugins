@@ -4,6 +4,7 @@ import asyncio
 from mbot.core.plugins import plugin
 from bilibili_api import sync, Credential, user
 
+from BilibiliDownloader.core import retry_video_process, follow_up
 from utils import global_value, others, LOGGER
 from mr import mr_notify
 
@@ -29,6 +30,7 @@ def get_config(follow_uid: [int], get_user_follow: bool, ignore_uid_list: [int])
                 follow_uid_list.remove(i)
     _LOGGER.info(f"最终追更列表：{follow_uid_list}")
     get_limit_parts(follow_uid_list)
+    check_upload_interval(follow_uid_list)
 
 
 def get_user_follow_list():
@@ -56,6 +58,12 @@ def get_user_follow_list():
         _LOGGER.info("cookie失效或还没登陆，无法获取关注列表")
         return []
 
+def check_upload_interval(follow_list: list):
+    """检查up主更新间隔"""
+    if len(follow_list) <= 20:
+        return 10
+    interval = 10 - follow_check_parts * 0.5 if 10 - follow_check_parts * 0.5 > 2 else 2
+    return interval
 
 @plugin.task("retry_download", "重新下载之前报错的视频", cron_expression="*/7 * * * *")
 def retry_download():
@@ -64,10 +72,10 @@ def retry_download():
         _LOGGER.warning("还没登录bilibili账号，查询是否有需要重试下载的视频任务停止运行")
         return False
     _LOGGER.info("开始运行定时任务：查询是否有需要重试下载的视频")
-    asyncio.run(bilibili_main.retry_video())
+    asyncio.run(retry_video_process.retry_video())
 
 
-@plugin.task("check_up_update", "查询追更的up主是否更新", cron_expression="*/2 * * * *")
+@plugin.task("check_up_update", "查询追更的up主是否更新", cron_expression=f"*/{str(check_upload_interval(follow_uid_list))} * * * *")
 def check_update():
     # 检查视频更新
     if not global_value.get_value("cookie_is_valid"):
@@ -86,7 +94,7 @@ def check_update():
     follow_list = check_up_update_limit()
     _LOGGER.info(f"开始查询{follow_list}是否更新")
     for i in follow_list:
-        update = bilibili_main.ListenUploadVideo(
+        update = follow_up.ListenUploadVideo(
             i, if_people_path, media_path, people_path
         )
         tasks.append(update.listen_no_pages_video_new())
@@ -167,9 +175,8 @@ def check_cookie_is_valid():
         global_value.set_value("is_cookie_valid", False)
         # _LOGGER.info("扫描次数："+str(num))
         if cookie_check_num == 30:
-            server.notify.send_text_message(
+            mr_notify.Notify.send_any_text_message(
                 title="b站cookie过期，请重新扫码登录",
-                to_uid=1,
                 body="登录失效，请去mr的插件快捷功能页点击扫码登录按钮，并进行登陆",
             )
             cookie_check_num = 0

@@ -15,12 +15,12 @@ from bilibili_api.login import make_qrcode
 from bilibili_api.utils.utils import get_api
 
 from utils import global_value, LOGGER, files
-from BilibiliDownloader.mr import mr_notify, mr_api, server
+from BilibiliDownloader.mr import mr_notify, mr_api
 
 API = get_api("login")
 _LOGGER = LOGGER
 login_key = ""
-mr_session = server.session
+
 local_path = global_value.get_value("local_path")
 
 
@@ -36,45 +36,15 @@ def pad_image(image, target_size):
     new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
     return new_image
 
-class WecomUploadImage:
-    """企业微信上传图片"""
-    def __init__(self, image_path):
-        self.image_path = image_path
-        self.config = get_wecom_config()
-
-
-    def get_access_token(self):
-        """获取access_token"""
-        url = "https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={}&corpsecret={}".format(
-            self.config["corpid"], self.config["corpsecret"]
-        )
-        res = requests.get(url=url)
-        res = res.json()
-        return res["access_token"]
-
-    def upload(self):
-        """上传图片"""
-        url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={}".format(
-            self.config["key"]
-        )
-        files = {"media": open(self.image_path, "rb")}
-        res = requests.post(url=url, files=files)
-        res = res.json()
-        if res["errcode"] == 0:
-            return res["media_id"]
-        else:
-            return False
 
 @tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_fixed(5))
 def send_qrcode(img):
     """发送二维码(走mr推送渠道)"""
-    # TODO: 调用微信官方api上传图片
-    url = send_qrcode_by_imagebad(img)
+    url = mr_api.upload_image(img)
     if url:
         mr_notify.Notify.send_login_qrcode(url)
     else:
         raise Exception("发送二维码失败")
-
 
 
 def send_qrcode_by_imagebad(img):
@@ -86,6 +56,7 @@ def send_qrcode_by_imagebad(img):
         return res["data"]["url"]
     else:
         return False
+
 
 def events():
     """监听登录事件"""
@@ -101,7 +72,8 @@ def events():
     _LOGGER.info(events)
     if "code" in events.keys() and events["code"] == -412:
         _LOGGER.info(events["message"] + "二维码废弃，请重新登录")
-        mr_notify.Notify.send_any_text_message("二维码废弃，请重新登录", events["message"] + "二维码废弃，请稍等一会尝试重新登陆")
+        mr_notify.Notify.send_any_text_message("二维码废弃，请重新登录",
+                                               events["message"] + "二维码废弃，请稍等一会尝试重新登陆")
         return False
     if isinstance(events["data"], dict):
         url = events["data"]["url"]
@@ -133,15 +105,6 @@ def update_qrcode():
     return qrcode_image
 
 
-def get_wecom_config() -> dict:
-    """获取企业微信配置"""
-    config = mr_api.NotifyConfig(mr_session).config()
-    for push_way in config:
-        if push_way["type"] == "qywx":
-            return push_way
-    return {}
-
-
 def by_scan_qrcode():
     """扫码登录"""
     _LOGGER.info("收到登录请求，由于网络等原因，发送时间可能较长，请耐心等待")
@@ -165,4 +128,3 @@ def by_scan_qrcode():
                 _LOGGER.error("登录超时")
                 mr_notify.Notify.send_any_text_message("登录超时", "b站登录超时，请重新点击登录按钮")
                 return
-

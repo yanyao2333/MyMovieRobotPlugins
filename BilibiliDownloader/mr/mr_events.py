@@ -99,6 +99,8 @@ def check_config(config: dict):
     global_value.set_value("danmaku_config", get_danmaku_config(config))
     global_value.set_value("video_dir", config.get("video_dir"))
     global_value.set_value("part_video_dir", config.get("part_video_dir"))
+    global_value.set_value("up_folder_save_dir", config.get("part_video_dir"))  # 这里就不改utils的代码了，直接这样写，美其名曰：降低耦合
+    global_value.set_value("up_folder_save", config.get("up_folder_save"))
     mr_cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list)
     _LOGGER.info(f"配置已初始化完成")
 

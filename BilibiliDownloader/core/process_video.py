@@ -25,6 +25,7 @@ NoRetry = "NoRetry"
 
 class ProcessNormalVideo:
     bvid = ""
+    path = ""
 
     def __init__(
         self,
@@ -32,14 +33,17 @@ class ProcessNormalVideo:
         video_path: str,
         scraper_people: bool,
         emby_people_path: str = None,
+        video_info: dict = None,
+        video_object: object = None,
     ):
         """单视频下载刮削流程
 
-        Args:
-            bvid (str): 视频bvid
-            video_path (str): 本视频及数据的保存路径
-            scraper_people (bool): 是否刮削up主
-            emby_people_path (str, optional): up主文件夹路径
+        :param bvid: 视频bvid
+        :param video_path: 视频保存路径
+        :param scraper_people: 是否刮削人物
+        :param emby_people_path: emby人物文件夹路径
+        :param video_info: 视频信息
+        :param video_object: 视频对象
         """
         self.pretty_title = None
         self.title = None
@@ -50,6 +54,7 @@ class ProcessNormalVideo:
         self.scraper_people = scraper_people
         self.emby_people_path = emby_people_path
         ProcessNormalVideo.bvid = bvid
+        ProcessNormalVideo.path = video_path
 
     async def check_args(self):
         """检查参数是否合法"""
@@ -69,12 +74,15 @@ class ProcessNormalVideo:
 
         :return: 是否成功
         """
-        res = await get_video_info(self.bvid)
-        _LOGGER.info(f"视频信息为：{res}")
-        if res is False:
-            _LOGGER.error("获取视频信息失败")
-            return NoRetry
-        self.video_info, self.video_object = res
+        if self.video_info and self.video_object:
+            _LOGGER.info(f"已有视频信息，跳过获取视频信息步骤")
+        else:
+            res = await get_video_info(self.bvid)
+            _LOGGER.info(f"视频信息为：{res}")
+            if res is False:
+                _LOGGER.error("获取视频信息失败")
+                return NoRetry
+            self.video_info, self.video_object = res
         self.title = self.video_info["title"].replace("/", " ")
         self.pretty_title = " 「" + self.title + "」 "
         if len(self.video_info["pages"]) > 1:
@@ -213,6 +221,7 @@ class ProcessNormalVideo:
         remove_error_video_folder=True,
         record_video_page=0,
         record_video_bvid=bvid,
+        remove_error_video_path=path,
     )
     async def run(self) -> str | bool:
         """执行刮削
