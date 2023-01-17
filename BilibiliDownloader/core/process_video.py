@@ -1,20 +1,38 @@
 """核心部分，控制视频下载刮削流程"""
 import shutil
+import sys
 
 from aiofiles import os
 
 from utils import global_value, LOGGER, handle_error
 from . import nfo_generator
-from .public_function import get_video_info, download_video, download_subtitle, download_video_cover, downlod_ass_danmakus, download_people_image
+from .public_function import (
+    get_video_info,
+    download_video,
+    download_subtitle,
+    download_video_cover,
+    downlod_ass_danmakus,
+    download_people_image,
+)
 
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
 NoRetry = "NoRetry"
 
 
+# sys.stdout = LOGGER.handle[0].flush()
+
+
 class ProcessNormalVideo:
     bvid = ""
-    def __init__(self, bvid: str, video_path: str, scraper_people: bool, emby_people_path: str = None):
+
+    def __init__(
+        self,
+        bvid: str,
+        video_path: str,
+        scraper_people: bool,
+        emby_people_path: str = None,
+    ):
         """单视频下载刮削流程
 
         Args:
@@ -168,13 +186,21 @@ class ProcessNormalVideo:
         _LOGGER.info(f"视频有 {len(subtitle_list)} 个字幕，开始处理")
         for subtitle in subtitle_list:
             if "ai" in subtitle["lan"]:
-                _LOGGER.info(f"这个字幕为AI字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+                _LOGGER.info(
+                    f"这个字幕为AI字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载"
+                )
             elif "zh" in subtitle["lan"]:
-                _LOGGER.info(f"这个字幕为中文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+                _LOGGER.info(
+                    f"这个字幕为中文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载"
+                )
             else:
-                _LOGGER.info(f"这个字幕为外文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载")
+                _LOGGER.info(
+                    f"这个字幕为外文字幕，语言代码为：{subtitle['lan']}，中文名称为：{subtitle['lan_doc']}，开始下载"
+                )
             filename = f"{self.title}.{subtitle['lan']}"
-            res = await download_subtitle(subtitle["subtitle_url"], self.video_path, filename)
+            res = await download_subtitle(
+                subtitle["subtitle_url"], self.video_path, filename
+            )
             if res is False:
                 _LOGGER.info(f"该字幕下载失败，跳过处理")
                 continue
@@ -182,7 +208,12 @@ class ProcessNormalVideo:
         _LOGGER.info(f"字幕保存完成：{self.pretty_title}")
         return True
 
-    @handle_error(record_error_video=True, remove_error_video_folder=True, record_video_page=0, record_video_bvid=bvid)
+    @handle_error(
+        record_error_video=True,
+        remove_error_video_folder=True,
+        record_video_page=0,
+        record_video_bvid=bvid,
+    )
     async def run(self) -> str | bool:
         """执行刮削
 
@@ -212,6 +243,7 @@ class ProcessNormalVideo:
                 return False
         _LOGGER.info(f"视频刮削完成：{self.pretty_title}")
         return True
+
 
 # if __name__ == "__main__":
 #     asyncio.run(ProcessNormalVideo("BV1uG4y1C7Q1", video_path="../tests/video_test", scraper_people=True, emby_people_path="../tests/people").run())

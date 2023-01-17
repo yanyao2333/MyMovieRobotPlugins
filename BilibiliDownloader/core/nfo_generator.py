@@ -13,11 +13,11 @@ _LOGGER = LOGGER
 
 class MediaInfoError(Exception):
     """媒体信息错误"""
+
     pass
 
 
 class NfoGenerator:
-
     def __init__(self, media_info: dict, page: int = 0) -> None:
         """构建nfo元数据，返回xml
         Args:
@@ -27,7 +27,11 @@ class NfoGenerator:
         self.media_info = media_info
         self.page = page
         if not self._validate_media_info():
-            raise MediaInfoError("传入的media_info不合法，可能是被风控了，跳过该视频。详细media_info内容：\n{}".format(self.media_info))
+            raise MediaInfoError(
+                "传入的media_info不合法，可能是被风控了，跳过该视频。详细media_info内容：\n{}".format(
+                    self.media_info
+                )
+            )
         self.title = self.media_info["title"]
         _LOGGER.info(media_info)
 
@@ -36,7 +40,7 @@ class NfoGenerator:
         Returns:
             bool: 是否合法
         """
-        check_key_list = ["title", "pubdate", "desc",  "bvid", "duration", "tname"]
+        check_key_list = ["title", "pubdate", "desc", "bvid", "duration", "tname"]
         for key in check_key_list:
             if key not in self.media_info:
                 return False
@@ -49,13 +53,19 @@ class NfoGenerator:
         """
         _media_info = self.media_info
         meta_data = _media_info.copy()
-        meta_data.update(release_year=time.strftime("%Y", time.localtime(_media_info["pubdate"])))
-        meta_data.update(minute_duration=(
+        meta_data.update(
+            release_year=time.strftime("%Y", time.localtime(_media_info["pubdate"]))
+        )
+        meta_data.update(
+            minute_duration=(
                 str(_media_info["duration"] // 60)
                 if _media_info["duration"] // 60 > 0
                 else "1"
-            ))
-        meta_data.update(pubdate=time.strftime("%Y-%m-%d", time.localtime(_media_info["pubdate"])))
+            )
+        )
+        meta_data.update(
+            pubdate=time.strftime("%Y-%m-%d", time.localtime(_media_info["pubdate"]))
+        )
         return meta_data
 
     async def gen_movie_nfo(self) -> etree.ElementTree:
@@ -170,6 +180,10 @@ class NfoGenerator:
         genre.text = _video_info["tname"]
         runtime = etree.SubElement(root, "runtime")
         runtime.text = _video_info["minute_duration"]
+        season = etree.SubElement(root, "season")
+        season.text = "1"
+        episode = etree.SubElement(root, "episode")
+        episode.text = str(self.page + 1)  # 程序内部页码从0开始，但对外展示从1开始
         try:
             for character in _video_info["staff"]:
                 actor = etree.SubElement(root, "actor")

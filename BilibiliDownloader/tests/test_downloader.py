@@ -11,5 +11,5 @@ class TestDownloader(unittest.TestCase):
         d.download_with_resume()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

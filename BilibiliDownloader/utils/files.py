@@ -1,77 +1,164 @@
 """操作文件"""
+import json
+import traceback
 
 import aiofiles
 from aiofiles import os as aios
+import os
 from . import global_value
 from . import LOGGER
 
 local_path = global_value.get_value("local_path") + "/data"
-if await aios.path.exists(local_path):
-    await aios.makedirs(local_path, exist_ok=True)
+if not os.path.exists(local_path):
+    print("文件夹存在")
+    os.makedirs(local_path, exist_ok=True)
 _LOGGER = LOGGER
+_LOGGER.info(local_path)
 
 
-class ErrorVideoFileControl:
+def parse_str_to_int(param_dict: dict) -> dict:
+    """python的json库会将为int的key转换为str，这个函数可以将其转换回来"""
+    new_dict = {}
+    for key, value in param_dict.items():
+        if isinstance(value, (dict,)):
+            res_dict = parse_str_to_int(value)
+            try:
+                new_key = int(key)
+                new_dict[new_key] = res_dict
+            except:
+                new_dict[key] = res_dict
+        else:
+            try:
+                new_key = int(key)
+                new_dict[new_key] = value
+            except:
+                new_dict[key] = value
+
+    return new_dict
+
+
+class ErrorVideoControlByJson:
     def __init__(self) -> None:
         """
-        error_video.txt文件控制
+        error_video.json文件控制
+        单个error_video记录json示例：{"BV1x7411L7Zv": {0 #第几P: 1 #重试次数, 1: 1}}
         """
-        if not aios.path.exists(f"{local_path}/error_video.txt"):
-            _LOGGER.info("error_video.txt 文件未创建，创建1下")
-            f = open(f"{local_path}/error_video.txt")
+        if not os.path.exists(f"{local_path}/error_video.json"):
+            _LOGGER.info("error_video.json 文件未创建，创建1下")
+            f = open(f"{local_path}/error_video.json", "w")
+            f.write("{}")
             f.close()
-        self.local_path = local_path + "/error_video.txt"
+        self.local_path = local_path + "/error_video.json"
 
-    async def write_error_video(self, bvid: str, page: int = 0):
-        """写入错误记录
-
-        :param bvid: 视频的bvid号
-        :param page: 分p号，从0开始
-        """
-        async with aiofiles.open(self.local_path, "a") as f:
-            await f.write(f"{bvid} P{str(page)}\n")
-            _LOGGER.info(f"写入error_video.txt成功，内容：{bvid} P{str(page)}")
-            await f.close()
-
-    async def read_error_video(self, bvid: str, page: int = 0) -> bool:
+    async def read_error_video(self, bvid: str, page: int = 0) -> bool and int:
         """根据bvid查找错误记录
 
         :param bvid: 视频的bvid号
         :param page: 分p号，从0开始
-        :return: 是否存在
+        :returns: 是否存在错误记录 and 重试次数
         """
-        async with aiofiles.open(self.local_path, "r") as f:
-            error_video = await f.readlines()
-            if error_video:
-                for i in error_video:
-                    if f"{bvid} P{str(page)}\n" in i:
-                        return True
-                    else:
-                        return False
+        if not await self._load_json_data():
+            return False, 0
+        if bvid in self.json_data:
+            if page in self.json_data[bvid]:
+                return True, self.json_data[bvid][page]
             else:
-                return False
+                return False, 0
+        else:
+            return False, 0
 
-    async def remove_error_video(self, bvid: str):
+    async def write_error_video(self, bvid: str, page: int = 0) -> bool:
+        """写入错误记录
+
+        :param bvid: 视频的bvid号
+        :param page: 分p号，从0开始
+        :return: 是否写入成功
+        """
+        if not await self._load_json_data():
+            return False
+        if bvid in self.json_data:
+            if page in self.json_data[bvid]:
+                self.json_data[bvid][page] += 1
+            else:
+                self.json_data[bvid][page] = 0  # 如果没有找到该分P，则设置初始值为0
+        else:
+            self.json_data[bvid] = {page: 0}
+        res = await self._save_json_data()
+        if not res:
+            return False
+        return True
+
+    async def remove_error_video(self, bvid: str, page: int = 0) -> bool:
         """删除一条错误记录
 
         :param bvid: 视频的bvid号
+        :param page: 分p号，从0开始
+        :return: 是否删除成功
         """
-        async with aiofiles.open(self.local_path, "r") as f:
-            lines = await f.readlines()
-        async with aiofiles.open(self.local_path, "w") as f_w:
-            for line in lines:
-                if bvid not in line:
-                    await f_w.write(line)
+        if not await self._load_json_data():
+            return False
+        if bvid in self.json_data:
+            if page in self.json_data[bvid]:
+                del self.json_data[bvid][page]
+            else:
+                return False
+        else:
+            return False
+        if (
+                bvid in self.json_data and not self.json_data[bvid]
+        ):  # 如果该bvid下没有分P了，则删除该bvid
+            del self.json_data[bvid]
+        if not await self._save_json_data():
+            return False
+        return True
 
-    async def get_error_video_list(self) -> list[str]:
+    async def get_error_video_list(self) -> list[dict[str, int or str]]:
         """获取错误列表
 
         Returns:
             list: 错误视频列表，每项包含bvid+page
         """
-        async with aiofiles.open(self.local_path, "r") as f:
-            lines = await f.readlines()
+        if not await self._load_json_data():
+            return []
         error_video_list = []
-        for line in lines:
-            error_video_list.append(line.replace("\n", ""))
+        for bvid in self.json_data:
+            for page in self.json_data[bvid]:
+                error_video_list.append({"bvid": bvid, "page": page, "retry": self.json_data[bvid][page]})
         return error_video_list
+
+    async def _save_json_data(self) -> bool:
+        """保存本次调用中产生的json数据"""
+        try:
+            json.dumps(self.json_data)
+        except Exception:
+            _LOGGER.error("json格式错误，请检查")
+            _LOGGER.error(traceback.format_exc())
+            return False
+        async with aiofiles.open(self.local_path, "w") as f:
+            await f.write(json.dumps(self.json_data, indent=4))
+            _LOGGER.info(
+                f"写入error_video.json成功，内容：{json.dumps(self.json_data, indent=4)}"
+            )
+        return True
+
+    async def _load_json_data(self) -> bool:
+        """加载json数据供调用"""
+        async with aiofiles.open(self.local_path, "r") as f:
+            source_data = await f.read()
+            try:
+                json.loads(source_data)
+            except Exception:
+                _LOGGER.error("json格式错误，输出错误日志后尝试重置")
+                _LOGGER.error(traceback.format_exc())
+                if len(source_data) == 0:
+                    _LOGGER.error("json文件为空，重置1下")
+                    async with aiofiles.open(self.local_path, "w") as f_w:
+                        await f_w.write("{}")
+                    source_data = "{}"
+                    _LOGGER.info("恢复成功")
+                else:
+                    _LOGGER.error("恢复失败，请自行打开json文件查看问题所在")
+                    return False
+            self.json_data = json.loads(source_data)
+            self.json_data = parse_str_to_int(self.json_data)
+        return True

@@ -34,8 +34,8 @@ def find_bv(url):
     run_in_background=True,
 )
 def download(
-        ctx: PluginCommandContext,
-        video_id: ArgSchema(ArgType.String, "BV号或网址", "需要下载的视频的BV号或网址，多个请用半角逗号隔开"),
+    ctx: PluginCommandContext,
+    video_id: ArgSchema(ArgType.String, "BV号或网址", "需要下载的视频的BV号或网址，多个请用半角逗号隔开"),
 ):
     try:
         if not global_value.get_value("cookie_is_valid"):

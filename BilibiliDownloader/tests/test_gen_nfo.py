@@ -2,6 +2,7 @@ import unittest
 import asyncio
 from BilibiliDownloader.core import nfo_generator
 
+
 class TestNfoGenerator(unittest.TestCase):
     def build_media_info(self):
         media_info = {
@@ -45,7 +46,7 @@ class TestNfoGenerator(unittest.TestCase):
         print(nfo.media_info)
         nn = asyncio.run(nfo.gen_movie_nfo())
         asyncio.run(nfo.save_nfo(nn, "./movie.nfo"))
-        
+
     def test_gen_tvshow_nfo(self):
         media_info = self.build_media_info()
         nfo = nfo_generator.NfoGenerator(media_info=media_info)
@@ -63,6 +64,7 @@ class TestNfoGenerator(unittest.TestCase):
         nfo = nfo_generator.NfoGenerator(media_info=media_info)
         nn = asyncio.run(nfo.gen_people_nfo())
         asyncio.run(nfo.save_nfo(nn, "./people.nfo"))
+
 
 if __name__ == "__main__":
     unittest.main()

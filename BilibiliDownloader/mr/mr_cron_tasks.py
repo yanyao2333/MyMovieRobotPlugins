@@ -45,8 +45,8 @@ def get_user_follow_list():
     _LOGGER.info("正在获取用户关注列表")
     # _LOGGER.info(str(global_value.get_value("cookie_is_valid"))+ "           "+str(global_value.get_value("credential")))
     if (
-            global_value.get_value("cookie_is_valid")
-            and global_value.get_value("credential") is not None
+        global_value.get_value("cookie_is_valid")
+        and global_value.get_value("credential") is not None
     ):
         cre = global_value.get_value("credential")
         uid = cre.dedeuserid
@@ -116,8 +116,8 @@ def check_up_update_limit():
         )
         follow_check_now_parts += 1
         return follow_uid_list[
-               (follow_check_now_parts - 1) * 20: follow_check_now_parts * 20
-               ]
+            (follow_check_now_parts - 1) * 20 : follow_check_now_parts * 20
+        ]
     else:
         _LOGGER.info("检查更新的up主已经全部检查完毕，重新开始新一轮检查")
         _LOGGER.info(
@@ -126,8 +126,8 @@ def check_up_update_limit():
         follow_check_now_parts = 0
         follow_check_now_parts += 1
         return follow_uid_list[
-               (follow_check_now_parts - 1) * 20: follow_check_now_parts * 20
-               ]
+            (follow_check_now_parts - 1) * 20 : follow_check_now_parts * 20
+        ]
 
 
 def get_limit_parts(follow_uid_list):
@@ -165,10 +165,10 @@ def check_cookie_is_valid():
         cookies = cookies.get_cookies()
     # _LOGGER.info(cookies)
     if sync(
-            Credential(
-                sessdata=cookies["SESSDATA"],
-                bili_jct=cookies["bili_jct"],
-            ).check_valid()
+        Credential(
+            sessdata=cookies["SESSDATA"],
+            bili_jct=cookies["bili_jct"],
+        ).check_valid()
     ):
         global_value.set_value("is_cookie_valid", True)
         # _LOGGER.info("cookie有效")

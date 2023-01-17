@@ -9,7 +9,6 @@ _server = server
 
 
 class Notify:
-
     def __init__(self, video_info):
         """插件的所有通知方法都在这里，经由此类传递给movie-robot"""
         self.video_info = video_info

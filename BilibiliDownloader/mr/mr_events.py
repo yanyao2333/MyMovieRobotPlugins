@@ -22,6 +22,7 @@ _LOGGER = LOGGER
 server = mbot_api
 local_path = global_value.get_value("local_path")
 
+
 class danmaku_config_model(BaseModel):
     """弹幕配置"""
 
@@ -58,11 +59,11 @@ def _(plugin: PluginMeta, config: Dict):
             open(f"{bilibili_main.local_path}/cookies.txt", "r").read()
         )
         if sync(
-                Credential(
-                    sessdata=cookies["SESSDATA"],
-                    bili_jct=cookies["bili_jct"],
-                    dedeuserid=cookies["DEDEUSERID"],
-                ).check_valid()
+            Credential(
+                sessdata=cookies["SESSDATA"],
+                bili_jct=cookies["bili_jct"],
+                dedeuserid=cookies["DEDEUSERID"],
+            ).check_valid()
         ):
             global_value.set_value(
                 "credential",
@@ -96,7 +97,9 @@ def _(plugin: PluginMeta, config: Dict):
         if config.get("ignore_uid_list")
         else []
     )
-    mr_cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list)
+    mr_cron_tasks.get_config(
+        follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list
+    )
     global_value.set_value("video_dir", config.get("video_dir"))
     global_value.set_value("part_video_dir", config.get("part_video_dir"))
     _LOGGER.info(f"插件加载成功。")
@@ -109,11 +112,11 @@ def _(config: Dict):
             open(f"{bilibili_main.local_path}/cookies.txt", "r").read()
         )
         if sync(
-                Credential(
-                    sessdata=cookies["SESSDATA"],
-                    bili_jct=cookies["bili_jct"],
-                    dedeuserid=cookies["DEDEUSERID"],
-                ).check_valid()
+            Credential(
+                sessdata=cookies["SESSDATA"],
+                bili_jct=cookies["bili_jct"],
+                dedeuserid=cookies["DEDEUSERID"],
+            ).check_valid()
         ):
             global_value.set_value(
                 "credential",
@@ -147,5 +150,7 @@ def _(config: Dict):
     global_value.set_value("danmaku_config", get_danmaku_config(config))
     global_value.set_value("video_dir", config.get("video_dir"))
     global_value.set_value("part_video_dir", config.get("part_video_dir"))
-    mr_cron_tasks.get_config(follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list)
+    mr_cron_tasks.get_config(
+        follow_uid_list, config.get("if_get_follow_list"), ignore_uid_list
+    )
     _LOGGER.info(f"插件配置更新。")

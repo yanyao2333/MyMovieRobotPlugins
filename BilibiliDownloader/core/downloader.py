@@ -38,7 +38,9 @@ class DownloadFunc:
             _LOGGER.info(f"开始下载url：{self.url}，保存路径：{self.path}")
             async with httpx.AsyncClient(headers=self.HEADERS) as client:
                 async with client.stream("GET", self.url) as response:
-                    _LOGGER.info(f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}")
+                    _LOGGER.info(
+                        f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}"
+                    )
                     async with open(self.path, "wb") as f:
                         async for data in response.aiter_bytes():
                             await f.write(data)
@@ -74,7 +76,9 @@ class DownloadFunc:
                 if downloaded_size < file_size:
                     self.HEADERS["range"] = f"bytes={file_size - downloaded_size}"
                     response = await client.get(self.url, headers=self.HEADERS)
-                    _LOGGER.info(f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}")
+                    _LOGGER.info(
+                        f"本次请求请求头：{response.request.headers}，状态码：{response.status_code}"
+                    )
                     if response.status_code == 416:
                         _LOGGER.info("不允许使用Range请求头或者Range请求头范围错误，回退到普通下载")
                         res, size = await self.normal_download()

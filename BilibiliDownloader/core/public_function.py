@@ -15,17 +15,23 @@ from utils import global_value, LOGGER, ccjson2srt
 from . import downloader
 
 global_value.init()
-global_value.set_value("local_path", _os.path.dirname(_os.path.abspath(__file__)) + "/../")
-global_value.set_value("danmaku_config", {
-                       "font_size": 25,
-                       "static_time": 5,
-                       "fly_time": 7,
-                       "alpha": 1,
-                       "number": 10,
-                       })
+global_value.set_value(
+    "local_path", _os.path.dirname(_os.path.abspath(__file__)) + "/../"
+)
+global_value.set_value(
+    "danmaku_config",
+    {
+        "font_size": 25,
+        "static_time": 5,
+        "fly_time": 7,
+        "alpha": 1,
+        "number": 10,
+    },
+)
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
 NoRetry = "NoRetry"
+
 
 class DownloadError(Exception):
     pass
@@ -44,7 +50,9 @@ def _validate_media_info(media_info: dict) -> bool:
     return True
 
 
-async def get_video_info(bvid: str = None, video_object: video.Video = None) -> tuple[dict, video.Video] | bool:
+async def get_video_info(
+    bvid: str = None, video_object: video.Video = None
+) -> tuple[dict, video.Video] | bool:
     """获取视频信息
 
     :param bvid: BV号(和video_object二选一)
@@ -72,7 +80,9 @@ async def get_video_info(bvid: str = None, video_object: video.Video = None) -> 
         return False
 
 
-async def download_video(video_object: video.Video, dst: str, filename: str, page: int = 0) -> str | bool:
+async def download_video(
+    video_object: video.Video, dst: str, filename: str, page: int = 0
+) -> str | bool:
     """下载视频
 
     :param video_object: 视频对象
@@ -131,9 +141,7 @@ async def download_video(video_object: video.Video, dst: str, filename: str, pag
     await os.remove(v_path)
     await os.remove(a_path)
     await os.removedirs(f"{local_path}/tmp/{title}")
-    _LOGGER.info(
-        f"视频音频下载完成，已混流为mp4文件，保存路径为：{dst}/{filename}.mp4"
-    )
+    _LOGGER.info(f"视频音频下载完成，已混流为mp4文件，保存路径为：{dst}/{filename}.mp4")
     return True
 
 
@@ -161,7 +169,9 @@ async def download_video_cover(video_info: dict, dst: str, filename: str) -> boo
         return False
 
 
-async def download_people_image(video_info: dict, dst: str, filename: str, people_name: str) -> str | bool:
+async def download_people_image(
+    video_info: dict, dst: str, filename: str, people_name: str
+) -> str | bool:
     """下载用户头像
 
     :param video_info: 视频信息
@@ -212,9 +222,7 @@ async def remove_some_danmaku(path, number):
             return True
         # _LOGGER.info(f"弹幕条数：{len(danmaku_lines)}，保留弹幕条数：{number}，删除间隔：{remove_interval}")
         lines_to_skip = (len(danmaku_lines) - number) // number
-        kept_lines = [
-            line for i, line in enumerate(lines) if i % lines_to_skip == 0
-        ]
+        kept_lines = [line for i, line in enumerate(lines) if i % lines_to_skip == 0]
         async with aiofiles.open(path, "w", encoding="UTF-8") as f:
             for line in header_lines + kept_lines:
                 await f.write(line)
@@ -233,10 +241,9 @@ async def remove_some_danmaku(path, number):
             return False
 
 
-
-
-
-async def downlod_ass_danmakus(video_object: video.Video, dst: str, filename: str) -> bool:
+async def downlod_ass_danmakus(
+    video_object: video.Video, dst: str, filename: str
+) -> bool:
     """下载弹幕
 
     :param video_object: 视频对象
