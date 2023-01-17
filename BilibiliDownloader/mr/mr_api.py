@@ -17,3 +17,11 @@ class MediaPath:
 
     def config(self):
         return self._session.get("config.get_media_path")
+
+
+class NotifyConfig:
+    def __init__(self, session: Session):
+        self._session: Session = session
+
+    def config(self):
+        return self._session.get("setting.get_notify")

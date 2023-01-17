@@ -1,33 +1,24 @@
 """movie-robot定时任务注册"""
-
-import threading
-
-from apscheduler.schedulers.blocking import BlockingScheduler
 import asyncio
-import logging
 
 from mbot.core.plugins import plugin
 from bilibili_api import sync, Credential, user
-from mbot.openapi import mbot_api
 
-from . import bilibili_main
-from ..utils import global_value
-from . import bilibili_login
+from utils import global_value, others, LOGGER
+from mr import mr_notify
 
 follow_uid_list = []
-if_people_path, people_path = bilibili_main.Utils.if_get_character()
-_LOGGER = logging.getLogger(__name__)
-sched = BlockingScheduler()
-server = mbot_api
+if_people_path, people_path = others.if_get_character()
+_LOGGER = LOGGER
 cookie_check_num = 0
 follow_check_parts = 0
 follow_check_now_parts = 0
 
 
-def get_config(follow_uid, if_get_follow_list, ignore_uid_list):
+def get_config(follow_uid: [int], get_user_follow: bool, ignore_uid_list: [int]):
     global follow_uid_list
     follow_uid_list = []
-    if if_get_follow_list:
+    if get_user_follow:
         follow_uid_list = get_user_follow_list()
         follow_uid_list += follow_uid
     else:
@@ -43,7 +34,6 @@ def get_config(follow_uid, if_get_follow_list, ignore_uid_list):
 def get_user_follow_list():
     """获取用户关注列表"""
     _LOGGER.info("正在获取用户关注列表")
-    # _LOGGER.info(str(global_value.get_value("cookie_is_valid"))+ "           "+str(global_value.get_value("credential")))
     if (
         global_value.get_value("cookie_is_valid")
         and global_value.get_value("credential") is not None

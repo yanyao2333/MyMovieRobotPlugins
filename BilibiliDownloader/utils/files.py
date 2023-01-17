@@ -37,7 +37,7 @@ def parse_str_to_int(param_dict: dict) -> dict:
     return new_dict
 
 
-class ErrorVideoControlByJson:
+class ErrorVideoController:
     def __init__(self) -> None:
         """
         error_video.json文件控制
@@ -161,4 +161,47 @@ class ErrorVideoControlByJson:
                     return False
             self.json_data = json.loads(source_data)
             self.json_data = parse_str_to_int(self.json_data)
+        return True
+
+
+class CookieController:
+    """Cookie.json控制器"""
+    def __init__(self):
+        self.local_path = local_path + "/cookie.json"
+        self.cookie_json = {}
+
+    def get_cookie(self) -> dict:
+        """获取cookie
+
+        :return: cookie值
+        """
+        with open(self.local_path, "r+") as f:
+            data = f.read()
+            if len(data) == 0:
+                f.write("{}")
+                return {}
+            else:
+                try:
+                    self.cookie_json = json.loads(data)
+                    return self.cookie_json
+                except Exception:
+                    _LOGGER.error("cookie.json格式错误，请检查")
+                    _LOGGER.error(traceback.format_exc())
+                    return {}
+
+    def set_cookie(self, cookie: dict) -> bool:
+        """设置cookie
+
+        :param cookie: cookie值
+        :return: 是否设置成功
+        """
+        try:
+            json.dumps(cookie)
+        except Exception:
+            _LOGGER.error("cookie格式错误，请检查")
+            _LOGGER.error(traceback.format_exc())
+            return False
+        with open(self.local_path, "w") as f:
+            f.truncate(0)
+            f.write(json.dumps(cookie, indent=4))
         return True

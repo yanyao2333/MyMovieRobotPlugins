@@ -27,10 +27,10 @@ global_value.set_value("local_path", local_path)
 #
 # install()
 #
-# if not os.path.exists(local_path + "/tmp"):
-#     os.makedirs(local_path + "/tmp", exist_ok=True)
-# if not os.path.exists(local_path + "/data"):
-#     os.makedirs(local_path + "/data", exist_ok=True)
+if not os.path.exists(local_path + "/tmp"):
+    os.makedirs(local_path + "/tmp", exist_ok=True)
+if not os.path.exists(local_path + "/data"):
+    os.makedirs(local_path + "/data", exist_ok=True)
 # # from .mr.mr_events import *
 # # from .cron_tasks import *
 # # from .mr_commands import *

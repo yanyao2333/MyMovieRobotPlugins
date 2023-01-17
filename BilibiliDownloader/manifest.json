@@ -7,11 +7,19 @@
   "requirements": [],
   "configField": [
     {
-      "fieldName": "allow_EULA",
+      "fieldName": "agree_EULA",
       "fieldType": "Bool",
       "label": "阅读同级目录内readme.md中的免责声明，如果同意且愿意承担使用插件的一切后果，请勾选此项，否则程序不会运行",
       "helperText": "",
       "defaultValue": false
+    },
+    {
+      "fieldName": "uid",
+      "fieldType": "Enum",
+      "label": "推送用户",
+      "helperText": "选择接收推送的用户（推送下载消息和二维码登录图片）,需在用户管理页独立设置推送配置（不填则默认向第一个用户推送）",
+      "enumValuesRef": "UserList",
+      "multiValue": true
     },
     {
       "fieldName": "follow_uid_list",
@@ -21,17 +29,24 @@
       "defaultValue": ""
     },
     {
+      "fieldName": "up_folder_save",
+      "fieldType": "Bool",
+      "label": "是否按up主建立文件夹并保存视频（视频的存放方式类似于剧集，具体可在github上查看效果图），勾选后同样需要填下面的视频下载位置",
+      "helperText": "",
+      "defaultValue": false
+    },
+    {
       "fieldName": "video_dir",
       "fieldType": "String",
       "label": "视频下载位置",
-      "helperText": "【必填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过），视频会以电影格式刮削，并保存到该目录下。（插件会自动在该路径下新建“bilibili”子文件夹存放视频）",
+      "helperText": "【必填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过）",
       "defaultValue": ""
     },
     {
       "fieldName": "part_video_dir",
       "fieldType": "String",
       "label": "分P视频下载位置",
-      "helperText": "【可选】如果你有下载分P视频的需求，请填写这个，分p视频会以剧集格式刮削并保存在这里。其余说明见上",
+      "helperText": "【可选】如果要下载多P视频，请设置这个。没需求就别填了，这功能不好用~",
       "defaultValue": ""
     },
     {

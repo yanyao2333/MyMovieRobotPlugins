@@ -12,7 +12,7 @@ class Notify:
     def __init__(self, video_info):
         """插件的所有通知方法都在这里，经由此类传递给movie-robot"""
         self.video_info = video_info
-        self.uid = global_value.get_value("uid") if global_value.get_value("uid") else 1
+        self.uids = global_value.get_value("uid") if global_value.get_value("uid") else [1]
 
     def send_message_by_templ(self):
         """发送模板消息"""
@@ -39,21 +39,23 @@ class Notify:
         link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
         poster_url = self.video_info["pic"]
         _LOGGER.info(f"开始发送模板消息")
-        _server.notify.send_message_by_tmpl(
-            title=title,
-            body=message,
-            context={"link_url": link_url, "pic_url": poster_url},
-            to_uid=self.uid,
-        )
+        for uid in self.uids:
+            _server.notify.send_message_by_tmpl(
+                title=title,
+                body=message,
+                context={"link_url": link_url, "pic_url": poster_url},
+                to_uid=uid,
+            )
 
     def send_sys_message(self):
         """发送系统消息"""
         _LOGGER.info("开始发送系统消息")
-        _server.notify.send_system_message(
-            title="bilibili下载完成",
-            to_uid=self.uid,
-            message=f"「{self.video_info['title']}」 下载完成，请刷新媒体库",
-        )
+        for uid in self.uids:
+            _server.notify.send_system_message(
+                title="bilibili下载完成",
+                to_uid=uid,
+                message=f"「{self.video_info['title']}」 下载完成，请刷新媒体库",
+            )
 
     def send_all_way(self):
         """发送所有通知方式"""
@@ -63,16 +65,42 @@ class Notify:
     def send_pages_video_notify(self):
         """发送分p视频通知"""
         _LOGGER.info("开始发送分p视频通知")
-        _server.notify.send_system_message(
-            title="🔔bilibili追更 分P视频提醒",
-            to_uid=self.uid,
-            message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n\n由于b站相关api的限制，请自行在视频完结后手动下载",
-        )
-        link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
-        poster_url = self.video_info["pic"]
-        _server.notify.send_message_by_tmpl(
-            title="bilibili追更 分P视频提醒",
-            to_uid=self.uid,
-            body=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n\n由于b站相关api的限制，请自行在视频完结后手动下载",
-            context={"link_url": link_url, "pic_url": poster_url},
-        )
+        for uid in self.uids:
+            _server.notify.send_system_message(
+                title="🔔bilibili追更 分P视频提醒",
+                to_uid=uid,
+                message=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n\n由于b站相关api的限制，请自行在视频完结后手动下载",
+            )
+            link_url = f"https://www.bilibili.com/video/{self.video_info['bvid']}"
+            poster_url = self.video_info["pic"]
+            _server.notify.send_message_by_tmpl(
+                title="bilibili追更 分P视频提醒",
+                to_uid=uid,
+                body=f"你追更的up主 {self.video_info['owner']['name']} 发布了新的分P视频：{self.video_info['title']}\n\n由于b站相关api的限制，请自行在视频完结后手动下载",
+                context={"link_url": link_url, "pic_url": poster_url},
+            )
+
+    @staticmethod
+    def send_login_qrcode(qrcode_url):
+        """发送登录二维码"""
+        _LOGGER.info("开始发送登录二维码")
+        uids = global_value.get_value("uid") if global_value.get_value("uid") else [1]
+        for uid in uids:
+            _server.notify.send_message_by_tmpl(
+                title="bilibili登录二维码",
+                body="请使用手机扫描二维码登录",
+                to_uid=uid,
+                context={"pic_url": qrcode_url, "link_url": "https://www.bilibili.com"},
+            )
+
+    @staticmethod
+    def send_any_text_message(title, body):
+        """发送任意文字消息"""
+        _LOGGER.info("开始发送任意消息")
+        uids = global_value.get_value("uid") if global_value.get_value("uid") else [1]
+        for uid in uids:
+            _server.notify.send_text_message(
+                title=title,
+                body=body,
+                to_uid=uid,
+            )
