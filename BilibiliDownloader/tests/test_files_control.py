@@ -1,12 +1,12 @@
 import os.path
 import unittest
 from unittest import suite
-from BilibiliDownloader.utils import files
+from ..utils import files
 from BilibiliDownloader.utils import global_value, LOGGER
 import asyncio
 
 # global_value.init()
-# global_value.set_value("local_path", r"F:\MyMovieRobotPlugins\BilibiliDownloader\tests")
+# global_value.set_value("local_path", r"F:\plugins\BilibiliDownloader\tests")
 
 
 class TestErrorVideoRecord(unittest.TestCase):

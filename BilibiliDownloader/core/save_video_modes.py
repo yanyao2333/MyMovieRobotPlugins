@@ -4,11 +4,11 @@ import os
 import aiofiles
 from aiofiles import os as aios
 
-from . import process_video, nfo_generator
+from . import process_video, nfo_generator, public_function
 from BilibiliDownloader.utils import others, LOGGER, global_value
 
 _LOGGER = LOGGER
-NoRetry = "NoRetry"
+
 
 class SaveVideoMode(enum.Enum):
     """保存视频的文件夹样式"""
@@ -17,7 +17,8 @@ class SaveVideoMode(enum.Enum):
 
 
 class SaveOneVideo:
-    def __init__(self, mode: SaveVideoMode, bvid: str, media_path: str, scraper_people: bool, emby_people_path: str = None):
+    def __init__(self, mode: SaveVideoMode, bvid: str, media_path: str, scraper_people: bool,
+                 emby_people_path: str = None):
         """下载视频入口函数
 
         :param mode: 保存视频的文件夹样式
@@ -39,27 +40,30 @@ class SaveOneVideo:
         """获取视频信息"""
         res = await process_video.get_video_info(self.bvid)
         if not res:
-            return NoRetry
+            return False
         self.video_info, self.video_object = res
         self.title = self.video_info["title"]
+        self.folder_name = self.video_info['owner']['name'] + "-" + self.video_info["owner"]["mid"]
 
-    async def _save_up_folder_style_video(self):
-        path = f"{self.media_path}/{self.video_info['owner']['name']}/Season 1/{self.title}"
+    async def get_uploader_info(self):
+        self.uploader_info = await public_function.get_uploader_info(self.video_info["owner"]["mid"])
+
+    async def _save_uploader_folder_style_video(self):
+        path = f"{self.media_path}/{self.folder_name}/Season 1/{self.title}"
         tmp_path = f"{self.media_path}/tmp/{self.title}"
         _LOGGER.info(f"视频保存路径：{path}")
         if not await aios.path.exists(path):
             os.makedirs(path)
         if not await aios.path.exists(tmp_path):
             os.makedirs(tmp_path)
-        await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people, emby_people_path=self.emby_people_path).run()
+        await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
+                                               emby_people_path=self.emby_people_path, video_info=self.video_info,
+                                               video_object=self.video_object).run()
         await aios.rename(tmp_path, path)
-        await nfo_generator.NfoGenerator(self.video_info, 0).gen_tvshow_nfo()
+        await nfo_generator.NfoGenerator(self.uploader_info, uploader_folder_mode=True).gen_tvshow_nfo_by_uploader()
 
 
 
     async def run(self):
         if not await aios.path.exists(f"{self.media_path}/tmp"):
             os.makedirs(f"{self.media_path}/tmp")
-
-
-

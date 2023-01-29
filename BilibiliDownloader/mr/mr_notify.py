@@ -1,7 +1,7 @@
 """movie-robot 消息通知交互"""
 
 import time
-from utils import LOGGER, global_value
+from ..utils import LOGGER, global_value
 from . import server
 
 _LOGGER = LOGGER

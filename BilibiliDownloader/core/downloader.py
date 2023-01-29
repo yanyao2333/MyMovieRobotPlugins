@@ -2,7 +2,7 @@ import traceback
 
 from aiofiles import os, open
 
-from utils import LOGGER, handle_error
+from ..utils import LOGGER, handle_error
 import tenacity
 import httpx
 

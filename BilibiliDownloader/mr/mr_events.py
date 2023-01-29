@@ -10,8 +10,8 @@ from bilibili_api import sync, Credential
 from mbot.openapi import mbot_api
 
 from . import mr_cron_tasks
-from utils import global_value, LOGGER, files
-from mr import mr_notify
+from ..utils import global_value, LOGGER, files
+from . import mr_notify
 from .. import process_pages_video
 from pydantic import BaseModel, validator
 from typing import Optional

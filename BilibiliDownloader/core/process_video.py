@@ -4,7 +4,8 @@ import sys
 
 from aiofiles import os
 
-from utils import global_value, LOGGER, handle_error
+from ..utils import global_value, LOGGER
+from ..utils.decorators import handle_error
 from . import nfo_generator
 from .public_function import (
     get_video_info,
@@ -17,7 +18,6 @@ from .public_function import (
 
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
-NoRetry = "NoRetry"
 
 
 # sys.stdout = LOGGER.handle[0].flush()
@@ -64,10 +64,10 @@ class ProcessNormalVideo:
         await os.makedirs(self.video_path, exist_ok=True)
         if self.scraper_people and self.emby_people_path is None:
             _LOGGER.error("开启了人物刮削，但未指定emby人物文件夹路径")
-            return NoRetry
+            return False
         elif await os.path.exists(self.emby_people_path) is False:
             _LOGGER.error("emby人物文件夹不存在，请检查是否将emby人物文件夹挂载到了mr容器中，并检查是否输入错误")
-            return NoRetry
+            return False
 
     async def get_video_info(self) -> str | bool:
         """获取视频信息
@@ -81,13 +81,13 @@ class ProcessNormalVideo:
             _LOGGER.info(f"视频信息为：{res}")
             if res is False:
                 _LOGGER.error("获取视频信息失败")
-                return NoRetry
+                return False
             self.video_info, self.video_object = res
         self.title = self.video_info["title"].replace("/", " ")
         self.pretty_title = " 「" + self.title + "」 "
         if len(self.video_info["pages"]) > 1:
             _LOGGER.error("视频为多P视频，请使用ProcessPagesVideo类进行处理，这不归我管~")
-            return NoRetry
+            return False
         return True
 
     async def download(self) -> bool | str:
@@ -108,12 +108,12 @@ class ProcessNormalVideo:
         )
         if res is False:
             return False
-        elif res is NoRetry:
-            return NoRetry
+        elif res is False:
+            return False
         _LOGGER.info(f"视频下载完成：{self.pretty_title}")
         return True
 
-    async def scraper(self) -> bool:
+    async def scraper_video(self) -> bool:
         """刮削视频
 
         Returns:
@@ -232,23 +232,20 @@ class ProcessNormalVideo:
         _LOGGER.info("收到刮削任务，先等我检查一下传入参数是否正确，并准备一些必要的东西")
         task_list = [
             self.download,
-            self.scraper,
+            self.scraper_video,
             self.scraper_people_folder,
             self.save_danmakus,
             self.save_subtitles,
         ]
-        if await self.check_args() is NoRetry:
-            return NoRetry
-        if await self.get_video_info() is NoRetry:
-            return NoRetry
+        if await self.check_args() is False:
+            return False
+        if await self.get_video_info() is False:
+            return False
         _LOGGER.info("准备工作完成，开始执行刮削任务")
         for func in task_list:
             res = await func()
-            if res is NoRetry:
-                _LOGGER.error(f"刮削任务失败，但是会重试")
-                return NoRetry
-            elif res is False:
-                _LOGGER.error(f"刮削任务失败，不会重试")
+            if res is False:
+                _LOGGER.error(f"刮削任务失败，会重试")
                 return False
         _LOGGER.info(f"视频刮削完成：{self.pretty_title}")
         return True

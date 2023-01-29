@@ -4,9 +4,9 @@ import asyncio
 from mbot.core.plugins import plugin
 from bilibili_api import sync, Credential, user
 
-from BilibiliDownloader.core import retry_video_process, follow_up
-from utils import global_value, others, LOGGER
-from mr import mr_notify
+from ..core import retry_video_process, follow_up
+from ..utils import global_value, others, LOGGER
+from . import mr_notify
 
 follow_uid_list = []
 if_people_path, people_path = others.if_get_character()

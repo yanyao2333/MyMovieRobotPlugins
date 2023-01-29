@@ -5,10 +5,8 @@ import time
 import traceback
 
 import aiofiles
-from aiofiles import os as aios
 import os
-from . import global_value
-from . import LOGGER
+from . import global_value, LOGGER
 
 local_path = global_value.get_value("local_path") + "/data"
 if not os.path.exists(local_path):
@@ -216,3 +214,7 @@ class CookieController:
             f.truncate(0)
             f.write(json.dumps(cookie, indent=4))
         return True
+
+
+async def get_video_number():
+    pass

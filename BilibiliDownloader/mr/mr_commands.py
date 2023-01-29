@@ -13,7 +13,7 @@ from mbot.core.params import ArgSchema, ArgType
 from mbot.core.plugins import plugin, PluginCommandContext, PluginCommandResponse
 
 from . import bilibili_main
-from utils import global_value
+from ..utils import global_value
 from . import bilibili_login
 
 _LOGGER = logging.getLogger(__name__)

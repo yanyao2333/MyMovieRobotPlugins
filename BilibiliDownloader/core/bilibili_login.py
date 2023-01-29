@@ -14,8 +14,8 @@ from bilibili_api import Credential, sync
 from bilibili_api.login import make_qrcode
 from bilibili_api.utils.utils import get_api
 
-from utils import global_value, LOGGER, files
-from BilibiliDownloader.mr import mr_notify, mr_api
+from ..utils import global_value, LOGGER, files
+from ..mr import mr_notify, mr_api
 
 API = get_api("login")
 _LOGGER = LOGGER

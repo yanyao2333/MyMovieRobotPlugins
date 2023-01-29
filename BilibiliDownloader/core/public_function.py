@@ -9,9 +9,9 @@ import aiofiles
 import ffmpeg
 from aiofiles import open, os
 import os as _os
-from bilibili_api import video, exceptions, ass
+from bilibili_api import video, exceptions, ass, user
 
-from utils import global_value, LOGGER, ccjson2srt
+from ..utils import global_value, LOGGER, ccjson2srt
 from . import downloader
 
 global_value.init()
@@ -30,7 +30,7 @@ global_value.set_value(
 )
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
-NoRetry = "NoRetry"
+credential = global_value.get_value("credential")
 
 
 class DownloadError(Exception):
@@ -63,7 +63,7 @@ async def get_video_info(
     if video_object is None and bvid is None:
         raise ValueError("bvid和video_object不能同时为空")
     try:
-        video_object = video.Video(bvid=bvid) if bvid is not None else video_object
+        video_object = video.Video(bvid=bvid, credential=credential) if bvid is not None else video_object
         video_info = await video_object.get_info()
         if not _validate_media_info(video_info):
             _LOGGER.error(f"视频信息校验失败，中断后续流程，获取到的视频信息为：\n{video_info}")
@@ -77,6 +77,21 @@ async def get_video_info(
         return False
     except Exception:
         _LOGGER.error(f"获取视频 {bvid} 信息时发生未知错误，详细报错信息：\n{traceback.format_exc()}")
+        return False
+
+
+async def get_uploader_info(uid: int) -> dict or bool:
+    """获取up主个人信息"""
+    try:
+        user_info = await user.User(uid=uid, credential=credential).get_user_info()
+        return user_info
+    except exceptions.ResponseCodeException:
+        _LOGGER.error("获取up主用户信息失败！等待重试")
+        _LOGGER.error(traceback.format_exc())
+        return False
+    except Exception:
+        _LOGGER.error("获取up主信息时发生了未知错误！")
+        _LOGGER.error(traceback.format_exc())
         return False
 
 
@@ -97,7 +112,7 @@ async def download_video(
     res = await get_video_info(video_object=video_object)
     if res is False:
         _LOGGER.error(f"跳过此视频下载")
-        return NoRetry
+        return False
     video_info, video_object = res
     title = video_info["title"].replace("/", " ")
     pretty_title = " 「" + title + "」 "
@@ -193,7 +208,7 @@ async def download_people_image(
         download_url = video_info["owner"]["face"]
     else:
         _LOGGER.error(f"视频信息中不存在 {people_name} 的头像信息")
-        return NoRetry
+        return False
     res = await DownloadFunc(download_url, f"{dst}/{filename}.jpg").download_cover()
     if res:
         _LOGGER.info(f"up主头像下载完成，保存路径为：{dst}/{filename}.jpg")

@@ -1,6 +1,6 @@
 from . import LOGGER, global_value
 import enum
-from mr import mr_api, mr_session
+from ..mr import mr_api, mr_session
 
 _LOGGER = LOGGER
 
