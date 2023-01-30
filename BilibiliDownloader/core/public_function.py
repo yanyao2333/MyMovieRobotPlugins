@@ -11,8 +11,9 @@ from aiofiles import open, os
 import os as _os
 from bilibili_api import video, exceptions, ass, user
 
-from ..utils import global_value, LOGGER, ccjson2srt
+from ..utils import global_value, LOGGER, ccjson2srt, SysOut
 from . import downloader
+import sys
 
 global_value.init()
 global_value.set_value(
@@ -31,6 +32,7 @@ global_value.set_value(
 local_path = global_value.get_value("local_path")
 _LOGGER = LOGGER
 credential = global_value.get_value("credential")
+sys.stdout = SysOut()  # 重定向sys.stdout，方便输出ffmpeg的日志
 
 
 class DownloadError(Exception):
@@ -51,7 +53,7 @@ def _validate_media_info(media_info: dict) -> bool:
 
 
 async def get_video_info(
-    bvid: str = None, video_object: video.Video = None
+        bvid: str = None, video_object: video.Video = None
 ) -> tuple[dict, video.Video] | bool:
     """获取视频信息
 
@@ -96,7 +98,7 @@ async def get_uploader_info(uid: int) -> dict or bool:
 
 
 async def download_video(
-    video_object: video.Video, dst: str, filename: str, page: int = 0
+        video_object: video.Video, dst: str, filename: str, page: int = 0
 ) -> str | bool:
     """下载视频
 
@@ -185,7 +187,7 @@ async def download_video_cover(video_info: dict, dst: str, filename: str) -> boo
 
 
 async def download_people_image(
-    video_info: dict, dst: str, filename: str, people_name: str
+        video_info: dict, dst: str, filename: str, people_name: str
 ) -> str | bool:
     """下载用户头像
 
@@ -257,7 +259,7 @@ async def remove_some_danmaku(path, number):
 
 
 async def downlod_ass_danmakus(
-    video_object: video.Video, dst: str, filename: str
+        video_object: video.Video, dst: str, filename: str
 ) -> bool:
     """下载弹幕
 
@@ -272,6 +274,7 @@ async def downlod_ass_danmakus(
         path = f"{dst}/{filename}.danmaku.ass"
         danmaku_config = global_value.get_value("danmaku_config")
         _LOGGER.info(f"弹幕样式：{danmaku_config}")
+        # TODO 增加字体设置
         await ass.make_ass_file_danmakus_protobuf(
             video_object,
             0,

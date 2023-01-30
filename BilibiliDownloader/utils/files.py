@@ -216,5 +216,10 @@ class CookieController:
         return True
 
 
-async def get_video_number():
-    pass
+async def count_folder_num(path: str) -> int:
+    """统计文件夹下文件夹的数量
+
+    :param path: 文件夹路径
+    :return: 文件夹数量
+    """
+    return len([name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))])

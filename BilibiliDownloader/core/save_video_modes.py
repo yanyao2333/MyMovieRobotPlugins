@@ -5,7 +5,7 @@ import aiofiles
 from aiofiles import os as aios
 
 from . import process_video, nfo_generator, public_function
-from BilibiliDownloader.utils import others, LOGGER, global_value
+from ..utils import LOGGER, files
 
 _LOGGER = LOGGER
 
@@ -43,7 +43,7 @@ class SaveOneVideo:
             return False
         self.video_info, self.video_object = res
         self.title = self.video_info["title"]
-        self.folder_name = self.video_info['owner']['name'] + "-" + self.video_info["owner"]["mid"]
+        self.folder_name = self.video_info['owner']['name'] + "-" + str(self.video_info["owner"]["mid"])
 
     async def get_uploader_info(self):
         self.uploader_info = await public_function.get_uploader_info(self.video_info["owner"]["mid"])
@@ -59,11 +59,28 @@ class SaveOneVideo:
         await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
                                                emby_people_path=self.emby_people_path, video_info=self.video_info,
                                                video_object=self.video_object).run()
-        await aios.rename(tmp_path, path)
-        await nfo_generator.NfoGenerator(self.uploader_info, uploader_folder_mode=True).gen_tvshow_nfo_by_uploader()
+        await self._move_video_to_folder(path)
+        await aios.remove(path + f"/{self.title}.nfo")
+        nfo = nfo_generator.NfoGenerator(self.uploader_info, uploader_folder_mode=True)
+        tvshow = await nfo.gen_tvshow_nfo_by_uploader()
+        await nfo.save_nfo(tvshow, path + "/../../tvshow.nfo")
+        video_num = await files.count_folder_num(path + "/../")
+        nfo = nfo_generator.NfoGenerator(self.video_info, page=video_num-1)
+        episode_detail = await nfo.gen_episodedetails_nfo()
+        await nfo.save_nfo(episode_detail, path + f"/{self.title}.nfo")
+
+    async def _move_video_to_folder(self, path):
+        """移动全部文件到指定文件夹并删除tmp文件夹"""
+        for file in os.listdir(f"{self.media_path}/tmp/{self.title}"):
+            await aios.rename(f"{self.media_path}/tmp/{self.title}/{file}", f"{path}/{file}")
+        await aios.removedirs(f"{self.media_path}/tmp/{self.title}")
 
 
 
     async def run(self):
         if not await aios.path.exists(f"{self.media_path}/tmp"):
             os.makedirs(f"{self.media_path}/tmp")
+        await self.get_video_info()
+        if self.mode == SaveVideoMode.UP_FOLDER_STYLE:
+            await self.get_uploader_info()
+            await self._save_uploader_folder_style_video()

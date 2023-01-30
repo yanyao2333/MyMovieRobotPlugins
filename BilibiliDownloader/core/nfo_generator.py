@@ -73,6 +73,8 @@ class NfoGenerator:
         meta_data.update(
             pubdate=time.strftime("%Y-%m-%d", time.localtime(_media_info["pubdate"]))
         )
+        if _media_info["desc"] == "":
+            meta_data.update(desc="暂无简介，认真看视频吧~")
         return meta_data
 
     async def gen_movie_nfo(self) -> etree.ElementTree:
