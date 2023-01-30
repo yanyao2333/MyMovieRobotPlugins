@@ -69,6 +69,19 @@ class SaveOneVideo:
         episode_detail = await nfo.gen_episodedetails_nfo()
         await nfo.save_nfo(episode_detail, path + f"/{self.title}.nfo")
 
+    async def _save_normal_style_video(self):
+        tmp_path = f"{self.media_path}/tmp/{self.title}"
+        path = f"{self.media_path}/{self.title}"
+        _LOGGER.info(f"视频保存路径：{path}")
+        if not await aios.path.exists(path):
+            os.makedirs(path)
+        if not await aios.path.exists(tmp_path):
+            os.makedirs(tmp_path)
+        await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
+                                               emby_people_path=self.emby_people_path, video_info=self.video_info,
+                                               video_object=self.video_object).run()
+        await self._move_video_to_folder(path)
+
     async def _move_video_to_folder(self, path):
         """移动全部文件到指定文件夹并删除tmp文件夹"""
         for file in os.listdir(f"{self.media_path}/tmp/{self.title}"):
@@ -84,3 +97,5 @@ class SaveOneVideo:
         if self.mode == SaveVideoMode.UP_FOLDER_STYLE:
             await self.get_uploader_info()
             await self._save_uploader_folder_style_video()
+        elif self.mode == SaveVideoMode.NORMAL_STYLE:
+            await self._save_normal_style_video()

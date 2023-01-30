@@ -15,6 +15,7 @@ from ..utils import global_value, LOGGER, ccjson2srt, SysOut
 from . import downloader
 import sys
 
+# TODO 记住，正式版本这里要删掉
 global_value.init()
 global_value.set_value(
     "local_path", _os.path.dirname(_os.path.abspath(__file__)) + "/../"
