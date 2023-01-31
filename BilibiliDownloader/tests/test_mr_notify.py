@@ -6,7 +6,7 @@ from BilibiliDownloader.mr import mr_notify
 class TestMrNotify(unittest.TestCase):
     def setUp(self):
         global_value.init()
-        global_value.set_value("uid", 1)
+        global_value.set_value("notify_uids", [1])
         self.video_info = {
             "title": "test",
             "owner": {"name": "test"},

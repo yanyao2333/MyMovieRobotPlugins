@@ -14,7 +14,7 @@
       "defaultValue": false
     },
     {
-      "fieldName": "uid",
+      "fieldName": "notify_uids",
       "fieldType": "Enum",
       "label": "推送用户",
       "helperText": "选择接收推送的用户（推送下载消息和二维码登录图片）,需在用户管理页独立设置推送配置（不填则默认向第一个用户推送）",
@@ -36,17 +36,21 @@
       "defaultValue": false
     },
     {
+      "fieldName": "video_save_mode",
+      "fieldType": "Enum",
+      "label": "视频保存风格",
+      "helperText": "选择视频保存风格，详情见github页",
+      "enumValues": {
+        "所有视频按照电影格式平铺在根目录下": "0",
+        "在根目录下新建up主专属目录作为剧集目录，视频按剧集格式分类存储在不同文件夹": "1"
+      },
+      "multiValue": false
+    },
+    {
       "fieldName": "video_dir",
       "fieldType": "String",
       "label": "视频下载位置",
       "helperText": "【必填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过）",
-      "defaultValue": ""
-    },
-    {
-      "fieldName": "part_video_dir",
-      "fieldType": "String",
-      "label": "分P视频下载位置",
-      "helperText": "【可选】如果要下载多P视频，请设置这个。没需求就别填了，这功能不好用~",
       "defaultValue": ""
     },
     {

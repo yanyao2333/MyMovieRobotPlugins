@@ -17,13 +17,8 @@ _LOGGER.info(local_path)
 
 
 async def delete_video_folder(video_path: str) -> None:
-    """删除视频目录"""
-    try:
-        shutil.rmtree(video_path)
-    except Exception as e:
-        _LOGGER.error(f"删除视频目录失败")
-        tracebacklog = traceback.format_exc()
-        _LOGGER.error(f"报错原因：{tracebacklog}")
+    """删除视频目录 ignore_errors=True，忽略错误，请自行判断是否存在"""
+    shutil.rmtree(video_path, ignore_errors=True)
 
 def parse_str_to_int(param_dict: dict) -> dict:
     """python的json库会将为int的key转换为str，这个函数可以将其转换回来"""

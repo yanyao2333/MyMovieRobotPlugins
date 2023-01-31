@@ -4,7 +4,7 @@ import sys
 
 from aiofiles import os
 
-from ..utils import global_value, LOGGER
+from ..utils import global_value, LOGGER, exception
 from ..utils.decorators import handle_error
 from . import nfo_generator
 from .public_function import (
@@ -178,7 +178,7 @@ class ProcessNormalVideo:
             _LOGGER.info(f"弹幕消失在了虚空中！请尝试自行下载")
             return True
         _LOGGER.info(f"弹幕保存完成：{self.pretty_title}")
-        return True
+        return False
 
     async def save_subtitles(self) -> bool | str:
         """保存字幕
@@ -216,13 +216,13 @@ class ProcessNormalVideo:
         _LOGGER.info(f"字幕保存完成：{self.pretty_title}")
         return True
 
-    @handle_error(
-        record_error_video=True,
-        remove_error_video_folder=True,
-        record_video_page=0,
-        record_video_bvid=bvid,
-        remove_error_video_path=path,
-    )
+    # @handle_error(
+    #     record_error_video=True,
+    #     remove_error_video_folder=True,
+    #     record_video_page=0,
+    #     record_video_bvid=bvid,
+    #     remove_error_video_path=path,
+    # )
     async def run(self) -> str | bool:
         """执行刮削
 
@@ -238,15 +238,16 @@ class ProcessNormalVideo:
             self.save_subtitles,
         ]
         if await self.check_args() is False:
-            return False
+            raise exception.ArgsError("传入参数错误，请检查日志")
         if await self.get_video_info() is False:
-            return False
+            raise exception.MediaInfoError("获取视频信息失败，请检查日志")
         _LOGGER.info("准备工作完成，开始执行刮削任务")
+        res_list = []
         for func in task_list:
             res = await func()
-            if res is False:
-                _LOGGER.error(f"刮削任务失败，会重试")
-                return False
+            res_list.append(res)
+        if False in res_list:
+            raise exception.DownloadAndScrapeError("下载刮削失败，请检查日志")
         _LOGGER.info(f"视频刮削完成：{self.pretty_title}")
         return True
 

@@ -6,17 +6,10 @@ from lxml import etree
 from enum import Enum
 
 import pypinyin
-from ..utils import LOGGER
-from ..utils.decorators import handle_error
+from ..utils import LOGGER, exception
 from copy import deepcopy
 
 _LOGGER = LOGGER
-
-
-class MediaInfoError(Exception):
-    """媒体信息错误"""
-
-    pass
 
 
 class NfoGenerator:
@@ -32,7 +25,7 @@ class NfoGenerator:
         self.page = page
         if uploader_folder_mode is False:
             if not self._validate_media_info():
-                raise MediaInfoError(
+                raise exception.MediaInfoError(
                     "传入的media_info不合法，可能是被风控了，跳过该视频。详细media_info内容：\n{}".format(
                         self.media_info
                     )

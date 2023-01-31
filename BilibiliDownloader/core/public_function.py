@@ -11,7 +11,7 @@ from aiofiles import open, os
 import os as _os
 from bilibili_api import video, exceptions, ass, user
 
-from ..utils import global_value, LOGGER, ccjson2srt, SysOut
+from ..utils import global_value, LOGGER, ccjson2srt, SysOut, exception
 from . import downloader
 import sys
 
@@ -323,4 +323,24 @@ async def download_subtitle(subtitle_json_url, dst: str, filename: str) -> bool:
         return True
     else:
         _LOGGER.error(f"字幕下载失败")
+        return False
+
+async def download_uploader_face(avatar_url, dst: str, filename: str) -> bool:
+    """下载up主头像
+
+    :param avatar_url: 头像地址
+    :param dst: 保存路径
+    :param filename: 文件名，不包含后缀
+
+    :return: 是否下载成功
+    """
+    client = httpx.AsyncClient()
+    avatar = await client.get(avatar_url)
+    if avatar.status_code == 200:
+        async with aiofiles.open(f"{dst}/{filename}.jpg", "wb") as f:
+            await f.write(avatar.content)
+        _LOGGER.info(f"头像下载完成，保存路径为：{dst}/{filename}.jpg")
+        return True
+    else:
+        _LOGGER.error(f"头像下载失败，状态码为：{avatar.status_code}，内容为：{avatar.text}")
         return False
