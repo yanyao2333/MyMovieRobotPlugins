@@ -1,7 +1,0 @@
-{
-  "localVersion": "2.0.0",
-  "githubRepo": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/BilibiliDownloadToEmby",
-  "remoteVersionJsonUrl": "https://raw.githubusercontent.com/yanyao2333/MyMovieRobotPlugins/master/BilibiliDownloadToEmby/version.json",
-  "proxy": "https://ghproxy.com",
-  "downloadUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/archive/refs/heads/master.zip"
-}
