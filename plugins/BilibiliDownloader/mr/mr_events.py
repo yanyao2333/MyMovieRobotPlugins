@@ -49,6 +49,10 @@ def get_danmaku_config(config: Dict):
 
 
 def check_config(config: dict):
+    if config.get("agree_EULA") is False:
+        _LOGGER.warning("您不同意用户协议，无法使用本插件，插件已停止运行")
+        global_value.set_value("agree_EULA", False) # 不同意用户协议
+        return False
     if files.CookieController().get_cookie():
         cookies = files.CookieController().get_cookie()
         if sync(
@@ -66,11 +70,11 @@ def check_config(config: dict):
                     dedeuserid=cookies["DEDEUSERID"],
                 ),
             )
-            global_value.set_value("cookie_is_valid", True)
+            global_value.set_value("cookie_is_valid", True) # cookie有效
             _LOGGER.info("cookie处在有效期内，不再登录，开始启动定时任务")
     else:
         _LOGGER.info("没有cookie文件或已失效，请重新登录")
-        global_value.set_value("cookie_is_valid", False)
+        global_value.set_value("cookie_is_valid", False) # cookie无效
         mr_notify.Notify.send_any_text_message(
             title="b站登录过期", body="b站登录过期，请到mr插件快捷功能页点击登录b站"
         )
@@ -94,7 +98,8 @@ def check_config(config: dict):
     except ValueError:
         _LOGGER.warning("忽略列表配置错误，看看你是不是把逗号写成了中文逗号！在你改过来之前，你填的东西无效")
         ignore_uid_list = []
-    global_value.set_value("danmaku_config", get_danmaku_config(config))
+    global_value.set_value("notify_uids", config.get("notify_uids")) # 通知的uid
+    global_value.set_value("danmaku_config", get_danmaku_config(config)) # 弹幕配置
     global_value.set_value("video_dir", config.get("video_dir"))
     # global_value.set_value("part_video_dir", config.get("part_video_dir"))
     global_value.set_value("up_folder_save_dir", config.get("part_video_dir"))  # 这里就不改utils的代码了，直接这样写
@@ -106,10 +111,10 @@ def check_config(config: dict):
 @plugin.after_setup
 def _(plugin: PluginMeta, config: Dict):
     check_config(config)
-    _LOGGER.info(f"插件加载成功。")
+    _LOGGER.info(f"BilibiliDownloader插件加载成功。")
 
 
 @plugin.config_changed
 def _(config: Dict):
     check_config(config)
-    _LOGGER.info(f"插件配置更新")
+    _LOGGER.info(f"BilibiliDownloader插件配置更新")

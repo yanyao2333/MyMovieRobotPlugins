@@ -1,5 +1,5 @@
 {
-  "name": "bilibili_download_scraper",
+  "name": "bilibili_downloader",
   "title": "bilibili下载刮削",
   "author": "yanyao",
   "description": "bilibili视频下载刮削，同时附带追更功能（本插件仅供学习技术使用，下载后请在24h内删除）",
@@ -10,7 +10,7 @@
       "fieldName": "agree_EULA",
       "fieldType": "Bool",
       "label": "阅读同级目录内readme.md中的免责声明，如果同意且愿意承担使用插件的一切后果，请勾选此项，否则程序不会运行",
-      "helperText": "",
+      "helperText": "阅读同级目录内readme.md中的免责声明，如果同意且愿意承担使用插件的一切后果，请勾选此项，否则程序不会运行",
       "defaultValue": false
     },
     {
@@ -25,7 +25,21 @@
       "fieldName": "follow_uid_list",
       "fieldType": "String",
       "label": "追更up列表",
-      "helperText": "【选填】填写需要追更的up的uid，多个uid用英文逗号隔开，如：123456,654321",
+      "helperText": "填写需要追更的up的uid，多个uid用英文逗号隔开，如：123456,654321",
+      "defaultValue": ""
+    },
+        {
+      "fieldName": "get_user_follow_list",
+      "fieldType": "Bool",
+      "label": "是否获取登录账号的关注列表附加到追更up列表（不会覆盖上方填写的追更列表，只是叠加）",
+      "helperText": "",
+      "defaultValue": false
+    },
+    {
+      "fieldName": "ignore_uid_list",
+      "fieldType": "String",
+      "label": "忽略up列表",
+      "helperText": "如果你的关注列表中有一些up的视频你不想下载，可以在这里填写他们的uid，多个uid用英文逗号隔开，如：123456,654321",
       "defaultValue": ""
     },
     {
@@ -39,7 +53,7 @@
       "fieldName": "video_save_mode",
       "fieldType": "Enum",
       "label": "视频保存风格",
-      "helperText": "选择视频保存风格，详情见github页",
+      "helperText": "【必选】选择视频保存风格，详情见github页",
       "enumValues": {
         "所有视频按照电影格式平铺在根目录下": "0",
         "在根目录下新建up主专属目录作为剧集目录，视频按剧集格式分类存储在不同文件夹": "1"
@@ -51,20 +65,6 @@
       "fieldType": "String",
       "label": "视频下载位置",
       "helperText": "【必填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过）",
-      "defaultValue": ""
-    },
-    {
-      "fieldName": "if_get_follow_list",
-      "fieldType": "Bool",
-      "label": "是否获取登录账号的关注列表附加到追更up列表（不会覆盖上方填写的追更列表，只是叠加）",
-      "helperText": "",
-      "defaultValue": false
-    },
-    {
-      "fieldName": "ignore_uid_list",
-      "fieldType": "String",
-      "label": "忽略up列表",
-      "helperText": "【可选】如果你的关注列表中有一些up的视频你不想下载，可以在这里填写他们的uid，多个uid用英文逗号隔开，如：123456,654321",
       "defaultValue": ""
     },
     {
@@ -103,6 +103,6 @@
       "defaultValue": ""
     }
   ],
-  "logoUrl": "/plugins/BilibiliDownloadToEmby/logo.jpg",
-  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/BilibiliDownloadToEmby"
+  "logoUrl": "/plugins/BilibiliDownloader/logo.jpg",
+  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/plugins/BilibiliDownloader"
 }

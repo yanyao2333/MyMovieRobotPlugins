@@ -5,7 +5,6 @@ from plugins.BilibiliDownloader.mr import mr_session, mr_api
 
 _LOGGER = LOGGER
 
-
 class MediaSaveMode(enum.Enum):
     """
     媒体保存模式
@@ -41,14 +40,18 @@ def get_media_path(mode: MediaSaveMode) -> str or bool:
         return part_video_dir
 
 
-def if_get_character() -> bool and str | None:
-    """获取mr刮削配置，判断是否获取角色信息
-
-    :return: 是否获取角色信息，角色信息保存路径
+def if_get_character():
+    # """获取mr刮削配置，判断是否获取角色信息
+    #
+    # :return: 是否获取角色信息，角色信息保存路径
+    # """
+    # api = mr_api.ScraperApi(mr_session)
+    # resp = api.config()
+    # if resp.get("use_cn_person_name"):
+    #     return True, resp.get("person_nfo_path")
+    # else:
+    #     return False, None
     """
-    api = mr_api.ScraperApi(mr_session)
-    resp = api.config()
-    if resp.get("use_cn_person_name"):
-        return True, resp.get("person_nfo_path")
-    else:
-        return False, None
+    新版要求用户手动输入，不再自动获取
+    """
+    pass
