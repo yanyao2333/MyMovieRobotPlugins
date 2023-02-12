@@ -273,7 +273,7 @@ async def downlod_ass_danmakus(
     try:
         _LOGGER.info(f"开始生成视频弹幕, 保存路径为：{dst}/{filename}.danmaku.ass")
         path = f"{dst}/{filename}.danmaku.ass"
-        danmaku_config = global_value.get_value("danmaku_config")
+        danmaku_config = global_value.get_value("config")  #TODO 后续可考虑通过传参的方式传入，而不是从全局变量中获取
         _LOGGER.info(f"弹幕样式：{danmaku_config}")
         # TODO 增加字体设置
         await ass.make_ass_file_danmakus_protobuf(

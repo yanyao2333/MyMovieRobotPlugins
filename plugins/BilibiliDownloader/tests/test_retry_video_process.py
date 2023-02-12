@@ -12,9 +12,15 @@ class TestRetryVideoProcess(unittest.TestCase):
         config_dict = {
             "video_save_mode": others.MediaSaveMode.UP_FOLDER_STYLE,
             "media_path": r"F:\MRPlugins\plugins\BilibiliDownloader\tests",
-            "person_dir": r"F:\MRPlugins\plugins\BilibiliDownloader\tests\people"}
+            "person_dir": r"F:\MRPlugins\plugins\BilibiliDownloader\tests\people",
+            "font_size": 20,
+            "number": 600,
+            "alpha": 0.8,
+            "fly_time": 7,
+            "static_time": 5
+        }
         global_value.set_value("config", config_dict)
-        asyncio.run(files.ErrorVideoController().write_error_video("BV1zs4y1W77w"))
+        asyncio.run(files.ErrorVideoController().write_error_video("BV1iG4y1N79u"))
         LOGGER.info("111")
         self.assertEqual(
             asyncio.run(

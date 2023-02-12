@@ -174,9 +174,9 @@ class ProcessNormalVideo:
         res = await downlod_ass_danmakus(self.video_object, self.video_path, self.title)
         if res is False:
             _LOGGER.info(f"弹幕消失在了虚空中！请尝试自行下载")
-            return True
+            return False
         _LOGGER.info(f"弹幕保存完成：{self.pretty_title}")
-        return False
+        return True
 
     async def save_subtitles(self) -> bool | str:
         """保存字幕
@@ -245,7 +245,11 @@ class ProcessNormalVideo:
             res = await func()
             res_list.append(res)
         if False in res_list:
-            raise exception.DownloadAndScrapeError("下载刮削失败，请检查日志")
+            err_list = []
+            for i in range(len(res_list)):
+                if res_list[i] is False:
+                    err_list.append(task_list[i].__name__)
+            raise exception.DownloadAndScrapeError(f"函数 {err_list} 执行失败，请检查日志")
         _LOGGER.info(f"视频刮削完成：{self.pretty_title}")
         return True
 
