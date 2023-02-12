@@ -1,20 +1,21 @@
+"""基于download_and_scraper，处理并移动下载刮削后的视频文件，使其符合用户所选择的文件夹风格"""
 import enum
 import os
 import shutil
 
 from aiofiles import os as aios
 
-from plugins.BilibiliDownloader.core import nfo_generator, public_function, process_video
+from plugins.BilibiliDownloader.core import nfo_generator, public_function, download_and_scraper
 from plugins.BilibiliDownloader.mr import mr_notify
-from plugins.BilibiliDownloader.utils import LOGGER, files
+from plugins.BilibiliDownloader.utils import LOGGER, files, others
 
 _LOGGER = LOGGER
+SaveVideoMode = others.MediaSaveMode
 
-
-class SaveVideoMode(enum.Enum):
-    """保存视频的文件夹样式"""
-    UP_FOLDER_STYLE = 0  # 按照up主分组保存
-    NORMAL_STYLE = 1  # 按照电影格式保存
+# class SaveVideoMode(enum.Enum):
+#     """保存视频的文件夹样式"""
+#     UP_FOLDER_STYLE = 0  # 按照up主分组保存
+#     NORMAL_STYLE = 1  # 按照电影格式保存
 
 
 class SaveOneVideo:
@@ -60,7 +61,7 @@ class SaveOneVideo:
             os.makedirs(path)
         if not await aios.path.exists(tmp_path):
             os.makedirs(tmp_path)
-        await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
+        await download_and_scraper.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
                                                emby_people_path=self.emby_people_path, video_info=self.video_info,
                                                video_object=self.video_object).run()
         await self._move_video_to_folder(path)
@@ -89,7 +90,7 @@ class SaveOneVideo:
         if not await aios.path.exists(tmp_path):
             os.makedirs(tmp_path)
         # raise Exception("这是一个人为制造的异常，用于测试异常处理")
-        await process_video.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
+        await download_and_scraper.ProcessNormalVideo(bvid=self.bvid, video_path=tmp_path, scraper_people=self.scraper_people,
                                                emby_people_path=self.emby_people_path, video_info=self.video_info,
                                                video_object=self.video_object).run()
         await self._move_video_to_folder(path)
@@ -103,7 +104,7 @@ class SaveOneVideo:
 
 
     # @decorators.handle_error(record_error_video=True, remove_error_video_folder=True, record_video_bvid=bvid, remove_error_video_path=f"{self.media_path}/tmp/{self.title}")
-    async def run(self):
+    async def run(self) -> bool:
         try:
             _LOGGER.info(f"下载刮削程序启动：{self.bvid}")
             if not await aios.path.exists(f"{self.media_path}/tmp"):
@@ -116,6 +117,7 @@ class SaveOneVideo:
             elif self.mode == SaveVideoMode.NORMAL_STYLE:
                 _LOGGER.info(f"视频保存模式：普通模式 干活了干活了")
                 await self._save_normal_style_video()
+            return True
         except Exception:
             _LOGGER.exception(f"下载刮削程序错误：{self.bvid}，删除文件目录，等待重试")
             if await files.ErrorVideoController().write_error_video(self.bvid, self.page) is False:
@@ -131,3 +133,4 @@ class SaveOneVideo:
             if self.mode == SaveVideoMode.NORMAL_STYLE:
                 if await aios.path.exists(f"{self.media_path}/{self.title}"):
                     await files.delete_video_folder(f"{self.media_path}/{self.title}")
+            return False

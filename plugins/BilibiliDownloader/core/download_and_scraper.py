@@ -34,7 +34,7 @@ class ProcessNormalVideo:
         video_info: dict = None,
         video_object: object = None,
     ):
-        """单视频下载刮削流程
+        """标准视频下载刮削流程
 
         :param bvid: 视频bvid
         :param video_path: 视频保存路径

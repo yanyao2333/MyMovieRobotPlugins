@@ -3,7 +3,7 @@
   "title": "bilibili下载刮削",
   "author": "yanyao",
   "description": "bilibili视频下载刮削，同时附带追更功能（本插件仅供学习技术使用，下载后请在24h内删除）",
-  "version": "1.0",
+  "version": "2.0",
   "requirements": [],
   "configField": [
     {
@@ -43,13 +43,6 @@
       "defaultValue": ""
     },
     {
-      "fieldName": "up_folder_save",
-      "fieldType": "Bool",
-      "label": "是否按up主建立文件夹并保存视频（视频的存放方式类似于剧集，具体可在github上查看效果图），勾选后同样需要填下面的视频下载位置",
-      "helperText": "",
-      "defaultValue": false
-    },
-    {
       "fieldName": "video_save_mode",
       "fieldType": "Enum",
       "label": "视频保存风格",
@@ -61,10 +54,17 @@
       "multiValue": false
     },
     {
-      "fieldName": "video_dir",
+      "fieldName": "media_path",
       "fieldType": "String",
-      "label": "视频下载位置",
+      "label": "视频保存位置",
       "helperText": "【必填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过）",
+      "defaultValue": ""
+    },
+    {
+      "fieldName": "person_dir",
+      "fieldType": "String",
+      "label": "emby人物信息保存位置",
+      "helperText": "【选填】请填写一个完整路径，如：/home/username/video（确保该目录在mr里挂载过），留空则不保存",
       "defaultValue": ""
     },
     {
@@ -104,5 +104,6 @@
     }
   ],
   "logoUrl": "/plugins/BilibiliDownloader/logo.jpg",
-  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/plugins/BilibiliDownloader"
+  "githubUrl": "https://github.com/yanyao2333/MyMovieRobotPlugins/tree/master/plugins/BilibiliDownloader",
+  "proxy": "https://ghproxy.com"
 }

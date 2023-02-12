@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 # from .utils import LOGGER
@@ -14,9 +15,9 @@ def get_local_version():
 
     :return: 版本号
     """
-    with open("version.json", "r") as f:
+    with open("manifest.json", "r") as f:
         data = f.read()
-        version = json.loads(data)["localVersion"]
+        version = json.loads(data)["version"]
     return version
 
 def get_remote_version():
@@ -26,26 +27,11 @@ def get_remote_version():
     """
     with open("version.json", "r") as f:
         data = f.read()
-        github_version_json = json.loads(data)["remoteVersionJsonUrl"]
+        github_version_json = json.loads(data)["remoteManifestUrl"]
         proxy = json.loads(data)["proxy"]
-    try:
-        LOGGER.info("正在获取远程版本号")
-        response = requests.get(github_version_json)
-        version = response.json()["localVersion"]
-        return version
-    except Exception:
-        if proxy:
-            LOGGER.exception("获取远程版本号失败，尝试使用代理获取")
-            try:
-                response = requests.get(proxy + github_version_json)
-                version = response.json()["version"]
-                return version
-            except Exception:
-                LOGGER.exception("使用代理获取远程版本号失败")
-                return False
-        else:
-            LOGGER.exception("获取远程版本号失败")
-            return False
+    response = requests.get(proxy + github_version_json)
+    version = response.json()["version"]
+    return version
 
 def check_update():
     """检查更新
@@ -54,7 +40,7 @@ def check_update():
     """
     local_version = get_local_version()
     remote_version = get_remote_version()
-    if local_version == remote_version:
+    if local_version == remote_version or local_version > remote_version:
         return False
     else:
         return True
@@ -68,34 +54,24 @@ def update():
         data = f.read()
         downlod_url = json.loads(data)["downloadUrl"]
         proxy = json.loads(data)["proxy"]
+    os.makedirs("tmp", exist_ok=True)
+    res = requests.get(downlod_url)
+    with open("./tmp/BilibiliDownloader.zip", "wb") as f:
+        f.write(res.content)
+    zipfile.ZipFile("./tmp/BilibiliDownloader.zip").extractall("./tmp")
+    os.remove("./tmp/BilibiliDownloader.zip")
+    shutil.copytree("./tmp/MyMovieRobotPlugins-master/BilibiliDownloader", "./", dirs_exist_ok=True)
+    shutil.rmtree("./tmp")
+    return True
+
+def main():
     try:
-        os.makedirs("tmp", exist_ok=True)
-        res = requests.get(downlod_url)
-        with open("./tmp/BilibiliDownloader.zip", "wb") as f:
-            f.write(res.content)
-        zipfile.ZipFile("./tmp/BilibiliDownloader.zip").extractall("./tmp")
-        os.remove("./tmp/BilibiliDownloader.zip")
-        shutil.copytree("./tmp/MyMovieRobotPlugins-master/BilibiliDownloader", "./", dirs_exist_ok=True)
-        shutil.rmtree("./tmp")
-        return True
-    except Exception:
-        if proxy:
-            LOGGER.exception("更新失败，尝试使用代理更新")
-            try:
-                res = requests.get(proxy + downlod_url)
-                with open("./tmp/BilibiliDownloader.zip", "wb") as f:
-                    f.write(res.content)
-                zipfile.ZipFile("./tmp/BilibiliDownloader.zip").extractall("./tmp")
-                os.remove("./tmp/BilibiliDownloader.zip")
-                shutil.copytree("./tmp/MyMovieRobotPlugins-master/BilibiliDownloader", "./", dirs_exist_ok=True)
-                shutil.rmtree("./tmp")
-                return True
-            except Exception:
-                LOGGER.exception("使用代理更新失败")
-                return False
+        if check_update():
+            update()
         else:
-            LOGGER.exception("更新失败")
-            return False
+            LOGGER.info("【BilibiliDownloader】当前已是最新版本")
+    except:
+        pass
 
 
 if __name__ == "__main__":

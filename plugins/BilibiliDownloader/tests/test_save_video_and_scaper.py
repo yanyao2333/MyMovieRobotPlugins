@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from plugins.BilibiliDownloader.core import save_video_modes
+from plugins.BilibiliDownloader.core import main_video_process
 
 
 class MyTestCase(unittest.TestCase):
